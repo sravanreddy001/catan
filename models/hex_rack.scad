@@ -55,7 +55,20 @@ eps = 0.01;
 
 // A hex standing on a flat edge is point-to-point wide, not across-flats.
 tile_p2p = tile_across_flats / cos(30);
-channel_d = tile_p2p + 2 * clearance;
+// Edge length. across_flats = side * sqrt(3), so the flat the tile rests on
+// is this long.
+tile_side = tile_across_flats / sqrt(3);
+// The socket's flared faces sit at 60 degrees, so a perpendicular gap of
+// `clearance` measures this much horizontally.
+clearance_h = clearance / cos(30);
+
+// Socket half-widths: at the resting flat, and at the tile's widest point.
+sock_half_bottom = tile_side / 2 + clearance_h;
+sock_half_wide = tile_p2p / 2 + clearance_h;
+// Height at which the flare reaches full width - the tile's mid-height.
+sock_flare_h = tile_across_flats / 2;
+
+channel_d = 2 * sock_half_wide;
 outer_d = channel_d + 2 * wall;
 
 n_blocks = len(block_counts);
@@ -72,10 +85,34 @@ function slot_x(i) = wall * (i + 1) + slots_before(i);
 
 // ---------------------------------------------------------------- modules
 
-// One slot cut, open at the top
+// Cross-section of a socket, in (depth, height), centred on depth 0.
+//
+// Follows the tile's own silhouette for the lower half - flat bottom, then
+// 60-degree flares out to full width at mid-height - and goes vertical above
+// that. Following the full hex would close back in over the tile and trap it.
+//
+// The tile's lower edges land on the flared faces, so a block self-centres
+// and cannot slump sideways.
+module socket_profile() {
+    polygon([
+        [-sock_half_bottom, 0],
+        [-sock_half_wide, sock_flare_h],
+        [-sock_half_wide, cavity_h + eps],
+        [ sock_half_wide, cavity_h + eps],
+        [ sock_half_wide, sock_flare_h],
+        [ sock_half_bottom, 0],
+    ]);
+}
+
+// One socket cut, open at the top.
+// The rotate pair maps the 2D profile's (depth, height) onto (Y, Z) and
+// extrudes along X, so `w` becomes the slot width.
 module slot_cut(x, w) {
-    translate([x, wall, floor_t])
-        cube([w, channel_d, cavity_h + eps]);
+    translate([x, outer_d / 2, floor_t])
+        rotate([0, 0, 90])
+            rotate([90, 0, 0])
+                linear_extrude(w)
+                    socket_profile();
 }
 
 // Name engraved into the top face of the divider left of block i
@@ -117,7 +154,8 @@ else coupon();
 // ---------------------------------------------------------------- report
 
 echo(str("tile point-to-point: ", tile_p2p, "mm"));
-echo(str("channel depth: ", channel_d, "mm"));
+echo(str("socket: flat ", 2 * sock_half_bottom, "mm wide, flaring to ",
+         channel_d, "mm at ", sock_flare_h, "mm, vertical above"));
 echo(str("slot widths: ", [for (i = [0 : n_blocks - 1]) slot_w(i)]));
 echo(str("slots total: ", slots_total, "mm"));
 echo(str("RACK EXTERNAL: ", outer_l, " x ", outer_d, " x ", total_h, "mm"));

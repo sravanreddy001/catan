@@ -71,14 +71,15 @@ Organization is otherwise **hybrid**: player wood split by color (one tray each,
 
 ## 6. Hex rack
 
-- External: **204 × 114 × 50mm**
-- Internal channel: 94mm deep (92.4mm hex point-to-point + clearance)
+- External: **204 × 114.2 × 50mm**
+- **Sockets are hex-profiled**, not square channels. Each slot's cross-section follows the tile's own silhouette for its lower half — a 47.1mm flat bottom, then 60° flares outward reaching full width (94.2mm) at 40mm, the tile's mid-height — then vertical above that. Following the full hexagon would close back over the tile and trap it.
+- Tiles rest their lower edges on the flared faces, so a block self-centres and cannot slump sideways.
 - **Long side walls are 10mm**, matching the dividers, so the rack is a rigid box section rather than a thin-walled tray.
 - Hexes stand on a **flat edge**, so standing height is 80mm — not 92.4mm. Standing on a point does not fit the box.
-- Rack walls are 50mm tall against an 80mm tile, so tiles protrude ~30mm. Intentional: it saves filament and gives you something to grip. The snug channel keeps them upright.
+- Rack walls are 50mm tall against an 80mm tile, so tiles protrude ~30mm. Intentional: it saves filament and gives you something to grip. The flared socket keeps them upright.
 - **Floor 1.5mm — a hard ceiling, not a choice.** 80mm tile + 1.5mm floor + 3mm rulebooks + 1mm clearance = 85.5mm of an 86mm interior. Any thicker and the lid stops closing. Stiffness comes from the 10mm walls and dividers: the floor never spans more than 66mm unsupported, and the rack carries ~550g of cardboard when full, which 1.5mm of PLA in an eggcrate handles comfortably.
 - Total occupied height 81.5mm.
-- Position: x 0-204, y 0-114
+- Position: x 0-204, y 0-114.2
 
 ### Partitions
 
@@ -115,27 +116,27 @@ Partition 4 stays empty until Seafarers 5-6 is bought. If its counts differ from
 
 Two regions beside the rack.
 
-**Region A** — x 0-292, y 114-292 (292 × 178mm), two stacked layers
-**Region B** — x 206-292, y 0-114 (86 × 114mm), full height
+**Region A** — x 0-292, y 115-292 (292 × 177mm), two stacked layers
+**Region B** — x 206-292, y 0-115 (86 × 115mm), full height
 
 ### Region A, lower layer (0-42mm)
 
 | Part | External (mm) | Position |
 |---|---|---|
-| Frame tray | 254 × 76 × 42 | x 0-254, y 114-190 |
-| Token / dice tray | 100 × 90 × 40 | x 0-100, y 192-282 |
-| Reference card tray | 96 × 94 × 32 | x 102-198, y 192-286 |
+| Frame tray | 254 × 76 × 42 | x 0-254, y 115-191 |
+| Token / dice tray | 100 × 90 × 40 | x 0-100, y 193-283 |
+| Reference card tray | 96 × 94 × 32 | x 102-198, y 193-287 |
 
-Spare: x 200-292, y 192-292.
+Spare: x 200-292, y 193-292.
 
 ### Region A, upper layer (42-82mm)
 
 | Part | External (mm) | Position |
 |---|---|---|
-| Card modules ×2, stacked | 173 × 85 × 20 each | x 0-173, y 114-199 |
-| Player trays ×6, two sub-layers of 3 | 95 × 60 × 20 each | x 0-285, y 201-261 |
+| Card modules ×2, stacked | 173 × 85 × 20 each | x 0-173, y 115-200 |
+| Player trays ×6, two sub-layers of 3 | 95 × 60 × 20 each | x 0-285, y 202-262 |
 
-Spare: x 175-292, y 114-199, and a 29mm strip at y 263-292.
+Spare: x 175-292, y 115-200, and a 29mm strip at y 263-292.
 
 ### Region B
 
