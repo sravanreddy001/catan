@@ -38,8 +38,9 @@ function numberColor(n: number): string {
   return n === 6 || n === 8 ? '#b3261e' : '#3b3226'
 }
 
-function pips(n: number): string {
-  return '•'.repeat(6 - Math.abs(7 - n))
+/** Probability pips: one dot per way the number can be rolled (1-5). */
+function pipCount(n: number): number {
+  return 6 - Math.abs(7 - n)
 }
 
 export default function Board({
@@ -93,15 +94,17 @@ export default function Board({
                   >
                     {t.number}
                   </text>
-                  <text
-                    className="tile__pips"
-                    x={t.cx}
-                    y={t.cy + 26}
-                    textAnchor="middle"
-                    fill={numberColor(t.number)}
-                  >
-                    {pips(t.number)}
-                  </text>
+                  {/* Drawn as circles rather than text: bullet glyphs got
+                      clipped at five pips. */}
+                  {Array.from({ length: pipCount(t.number) }, (_, i) => (
+                    <circle
+                      key={i}
+                      cx={t.cx + (i - (pipCount(t.number!) - 1) / 2) * 4.5}
+                      cy={t.cy + 24}
+                      r={1.6}
+                      fill={numberColor(t.number!)}
+                    />
+                  ))}
                 </g>
               )}
               {robberTile === t.id && (

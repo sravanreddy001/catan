@@ -48,13 +48,27 @@ export function HandBar({
 }) {
   return (
     <div className="hand">
-      {RESOURCES.map((r) => (
-        <div key={r} className="card" title={r}>
-          <span className="card__icon">{RESOURCE_ICON[r]}</span>
-          <span className="card__n">{player.hand[r]}</span>
-          {rates && <span className="card__rate">{rates[r]}:1</span>}
-        </div>
-      ))}
+      {RESOURCES.map((r) => {
+        const n = player.hand[r]
+        // Tighten the overlap as the pile grows so a big hand still fits.
+        const overlap = n > 8 ? 4 : n > 5 ? 7 : 11
+        return (
+          <div key={r} className="stack" title={`${n} ${r}`}>
+            <div className="stack__cards" style={{ '--overlap': `${overlap}px` } as React.CSSProperties}>
+              {n === 0 ? (
+                <span className="minicard minicard--empty">{RESOURCE_ICON[r]}</span>
+              ) : (
+                Array.from({ length: n }, (_, i) => (
+                  <span key={i} className={`minicard minicard--${r}`}>
+                    {RESOURCE_ICON[r]}
+                  </span>
+                ))
+              )}
+            </div>
+            {rates && <span className="card__rate">{rates[r]}:1</span>}
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -39,8 +39,8 @@ const PALETTE: Array<{ name: string; color: string; dark: string }> = [
   { name: 'White', color: '#f2ede4', dark: '#8d8578' },
 ]
 
-export function createPlayers(): Player[] {
-  return PALETTE.map((p, i) => ({
+export function createPlayers(count = 4): Player[] {
+  return PALETTE.slice(0, count).map((p, i) => ({
     id: i as PlayerId,
     name: p.name,
     color: p.color,

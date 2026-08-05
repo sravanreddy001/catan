@@ -13,10 +13,13 @@ import {
 } from './game/players'
 
 type Mode = BuildKind | 'robber' | null
-type Phase = 'setup' | 'play'
+type Phase = 'lobby' | 'setup' | 'play'
 
-/** Snake order for the opening placements: 0,1,2,3,3,2,1,0. */
-const SETUP_ORDER = [0, 1, 2, 3, 3, 2, 1, 0]
+/** Snake order for the opening placements, e.g. 0,1,2,3,3,2,1,0. */
+function setupOrder(count: number): number[] {
+  const forward = Array.from({ length: count }, (_, i) => i)
+  return [...forward, ...forward.slice().reverse()]
+}
 
 function occupiedVertices(players: Player[]): Set<string> {
   const s = new Set<string>()
@@ -53,7 +56,7 @@ function pick<T>(items: T[]): T {
 export default function App() {
   const [board, setBoard] = useState<Board>(() => createBoard())
   const [players, setPlayers] = useState<Player[]>(createPlayers)
-  const [phase, setPhase] = useState<Phase>('setup')
+  const [phase, setPhase] = useState<Phase>('lobby')
   const [setupIndex, setSetupIndex] = useState(0)
   /** During setup a settlement must be followed by a road from that corner. */
   const [pendingRoadFrom, setPendingRoadFrom] = useState<string | null>(null)
@@ -67,7 +70,8 @@ export default function App() {
   )
   const [message, setMessage] = useState('Place your first settlement.')
 
-  const currentId = phase === 'setup' ? SETUP_ORDER[setupIndex] : turn
+  const order = useMemo(() => setupOrder(players.length), [players.length])
+  const currentId = phase === 'setup' ? order[setupIndex] : turn
   const current = players[currentId]
   const rates = useMemo(
     () => tradeRates(board, [...current.settlements, ...current.cities]),
@@ -184,13 +188,13 @@ export default function App() {
 
   function advanceSetup() {
     const next = setupIndex + 1
-    if (next >= SETUP_ORDER.length) {
+    if (next >= order.length) {
       setPhase('play')
       setTurn(0)
-      setMessage('Setup done — Red to roll.')
+      setMessage(`Setup done — ${players[0].name} to roll.`)
     } else {
       setSetupIndex(next)
-      setMessage(`${players[SETUP_ORDER[next]].name}: place a settlement.`)
+      setMessage(`${players[order[next]].name}: place a settlement.`)
     }
   }
 
@@ -319,10 +323,10 @@ export default function App() {
     setMessage(`Pick a spot for your ${kind}.`)
   }
 
-  function newGame() {
+  function newGame(count: number) {
     const b = createBoard()
     setBoard(b)
-    setPlayers(createPlayers())
+    setPlayers(createPlayers(count))
     setPhase('setup')
     setSetupIndex(0)
     setPendingRoadFrom(null)
@@ -341,10 +345,28 @@ export default function App() {
       <header className="topbar">
         <h1 className="topbar__title">Catan</h1>
         <PlayerStrip players={players} current={currentId} />
-        <button className="btn btn--ghost" onClick={newGame}>
+        <button className="btn btn--ghost" onClick={() => setPhase('lobby')}>
           New game
         </button>
       </header>
+
+      {phase === 'lobby' && (
+        <div className="lobby">
+          <div className="lobby__panel">
+            <h2 className="lobby__title">How many players?</h2>
+            <div className="lobby__counts">
+              {[1, 2, 3, 4].map((n) => (
+                <button key={n} className="lobby__count" onClick={() => newGame(n)}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="lobby__hint">
+              Hot-seat: everyone plays on this device, passing it round.
+            </p>
+          </div>
+        </div>
+      )}
 
       <main className="stage">
         <BoardView
