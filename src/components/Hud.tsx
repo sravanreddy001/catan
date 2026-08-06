@@ -2,19 +2,31 @@ import { Fragment, useState } from 'react'
 import type { Resource } from '../game/board'
 import {
   COSTS,
+  DEV_ICON,
+  DEV_LABEL,
   RESOURCES,
   RESOURCE_ICON,
   canAfford,
+  canAffordDev,
   hasCards,
   isEmptyBundle,
   victoryPoints,
   type BuildKind,
+  type DevCard,
   type Player,
   type PlayerId,
   type TradeOffer,
 } from '../game/players'
 
-export function PlayerStrip({ players, current }: { players: Player[]; current: number }) {
+export function PlayerStrip({
+  players,
+  current,
+  largestArmy,
+}: {
+  players: Player[]
+  current: number
+  largestArmy: PlayerId | null
+}) {
   return (
     <div className="strip">
       {players.map((p) => (
@@ -25,7 +37,8 @@ export function PlayerStrip({ players, current }: { players: Player[]; current: 
         >
           <span className="chip__dot" />
           <span className="chip__name">{p.name}</span>
-          <span className="chip__vp">{victoryPoints(p)} VP</span>
+          {largestArmy === p.id && <span title="Largest army">⚔️</span>}
+          <span className="chip__vp">{victoryPoints(p, largestArmy)} VP</span>
         </div>
       ))}
     </div>
@@ -130,6 +143,90 @@ function costLabel(kind: BuildKind): string {
   return Object.entries(COSTS[kind])
     .map(([res, n]) => RESOURCE_ICON[res as keyof typeof RESOURCE_ICON].repeat(n ?? 0))
     .join('')
+}
+
+interface DevBarProps {
+  player: Player
+  deckCount: number
+  /** Blocked while a robber move or another card is resolving. */
+  busy: boolean
+  playedThisTurn: boolean
+  onBuy: () => void
+  onPlay: (card: DevCard) => void
+}
+
+export function DevBar({
+  player,
+  deckCount,
+  busy,
+  playedThisTurn,
+  onBuy,
+  onPlay,
+}: DevBarProps) {
+  return (
+    <div className="devbar">
+      <button
+        className="swap"
+        disabled={!canAffordDev(player) || deckCount === 0 || busy}
+        onClick={onBuy}
+        title={`${deckCount} cards left in the deck`}
+      >
+        Buy dev 🐑🌾⛰️
+      </button>
+      <div className="devbar__cards">
+        {player.devCards.length === 0 && <span className="devbar__empty">no cards</span>}
+        {player.devCards.map((c) => {
+          const playable = c.kind !== 'victory' && c.ready && !playedThisTurn && !busy
+          return (
+            <button
+              key={c.id}
+              className={`devcard${c.ready ? '' : ' devcard--new'}`}
+              disabled={!playable}
+              title={c.kind === 'victory' ? 'Counts towards victory automatically' : DEV_LABEL[c.kind]}
+              onClick={() => onPlay(c)}
+            >
+              <span>{DEV_ICON[c.kind]}</span>
+              <span className="devcard__label">{DEV_LABEL[c.kind]}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Pick one or more resources — used by monopoly and year of plenty. */
+export function ResourcePicker({
+  title,
+  hint,
+  onPick,
+  onCancel,
+}: {
+  title: string
+  hint?: string
+  onPick: (r: Resource) => void
+  onCancel?: () => void
+}) {
+  return (
+    <div className="modal">
+      <div className="modal__panel">
+        <h2 className="modal__title">{title}</h2>
+        {hint && <p className="lobby__hint">{hint}</p>}
+        <div className="trade__row">
+          {RESOURCES.map((r) => (
+            <button key={r} className="swap" onClick={() => onPick(r)}>
+              <span>{RESOURCE_ICON[r]}</span>
+            </button>
+          ))}
+        </div>
+        {onCancel && (
+          <button className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 type Bundle = Partial<Record<Resource, number>>

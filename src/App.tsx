@@ -4,20 +4,28 @@ import BoardView from './components/Board'
 import {
   ActionBar,
   Dice,
+  DevBar,
   HandBar,
   OfferComposer,
   OfferResponse,
   PlayerStrip,
+  ResourcePicker,
   TradeBar,
 } from './components/Hud'
 import { createBoard, tradeRates, vertexNeighbours, type Board, type Resource } from './game/board'
 import {
+  DEV_COST,
   applyTrade,
   canAfford,
+  canAffordDev,
+  createDevDeck,
   createPlayers,
+  largestArmyHolder,
   pay,
   victoryPoints,
   type BuildKind,
+  type DevCard,
+  type DevKind,
   type Player,
   type PlayerId,
   type TradeOffer,
@@ -82,6 +90,12 @@ export default function App() {
   const [message, setMessage] = useState('Place your first settlement.')
   const [composingOffer, setComposingOffer] = useState(false)
   const [offer, setOffer] = useState<TradeOffer | null>(null)
+  const [deck, setDeck] = useState<DevKind[]>(createDevDeck)
+  const [playedDev, setPlayedDev] = useState(false)
+  /** Free roads owed by a road-building card. */
+  const [freeRoads, setFreeRoads] = useState(0)
+  const [picking, setPicking] = useState<'monopoly' | 'plenty' | null>(null)
+  const [plentyLeft, setPlentyLeft] = useState(0)
 
   const order = useMemo(() => setupOrder(players.length), [players.length])
   const currentId = phase === 'setup' ? order[setupIndex] : turn
@@ -186,6 +200,14 @@ export default function App() {
       updateCurrent((p) => ({ ...p, roads: [...p.roads, id] }))
       setPendingRoadFrom(null)
       advanceSetup()
+      return
+    }
+    if (freeRoads > 0) {
+      updateCurrent((p) => ({ ...p, roads: [...p.roads, id] }))
+      const left = freeRoads - 1
+      setFreeRoads(left)
+      setMode(left > 0 ? 'road' : null)
+      setMessage(left > 0 ? 'One more free road.' : 'Road building resolved.')
       return
     }
     updateCurrent((p) => ({ ...pay(p, 'road'), roads: [...p.roads, id] }))
@@ -322,6 +344,77 @@ export default function App() {
     setMessage(`Traded ${rate} ${give} for 1 ${get}.`)
   }
 
+  function buyDev() {
+    if (!canAffordDev(current) || deck.length === 0) return
+    const [kind, ...rest] = deck
+    setDeck(rest)
+    updateCurrent((p) => {
+      const hand = { ...p.hand }
+      for (const [res, n] of Object.entries(DEV_COST)) hand[res as Resource] -= n ?? 0
+      return {
+        ...p,
+        hand,
+        devCards: [...p.devCards, { id: `${p.id}-${Date.now()}`, kind, ready: false }],
+      }
+    })
+    setMessage(`Bought a development card (${deck.length - 1} left).`)
+  }
+
+  function playDev(card: DevCard) {
+    // The card leaves the hand as it resolves; victory cards are never played.
+    updateCurrent((p) => ({
+      ...p,
+      devCards: p.devCards.filter((c) => c.id !== card.id),
+      knights: p.knights + (card.kind === 'knight' ? 1 : 0),
+    }))
+    setPlayedDev(true)
+
+    switch (card.kind) {
+      case 'knight':
+        setMode('robber')
+        setMessage('Knight played — move the robber.')
+        break
+      case 'roadBuilding':
+        setFreeRoads(2)
+        setMode('road')
+        setMessage('Road building — place 2 free roads.')
+        break
+      case 'monopoly':
+        setPicking('monopoly')
+        break
+      case 'plenty':
+        setPlentyLeft(2)
+        setPicking('plenty')
+        break
+      case 'victory':
+        break
+    }
+  }
+
+  /** Monopoly: every other player hands over their whole stock of one resource. */
+  function takeMonopoly(res: Resource) {
+    const taken = players.reduce((sum, p) => (p.id === currentId ? sum : sum + p.hand[res]), 0)
+    setPlayers((prev) =>
+      prev.map((p) =>
+        p.id === currentId
+          ? { ...p, hand: { ...p.hand, [res]: p.hand[res] + taken } }
+          : { ...p, hand: { ...p.hand, [res]: 0 } },
+      ),
+    )
+    setPicking(null)
+    setMessage(`Monopoly on ${res} — collected ${taken}.`)
+  }
+
+  function takePlenty(res: Resource) {
+    updateCurrent((p) => ({ ...p, hand: { ...p.hand, [res]: p.hand[res] + 1 } }))
+    const left = plentyLeft - 1
+    setPlentyLeft(left)
+    if (left === 0) {
+      setPicking(null)
+      setMessage('Year of plenty resolved.')
+    }
+  }
+
   function acceptOffer(responder: PlayerId) {
     if (!offer) return
     setPlayers((prev) => applyTrade(prev, offer.from, responder, offer.give, offer.want))
@@ -331,7 +424,17 @@ export default function App() {
   }
 
   function endTurn() {
-    setTurn((t) => (t + 1) % players.length)
+    const next = (turn + 1) % players.length
+    setTurn(next)
+    // Cards bought earlier become playable when their owner's turn comes round.
+    setPlayers((prev) =>
+      prev.map((p) =>
+        p.id === next ? { ...p, devCards: p.devCards.map((c) => ({ ...c, ready: true })) } : p,
+      ),
+    )
+    setPlayedDev(false)
+    setFreeRoads(0)
+    setPicking(null)
     setMode(null)
     setDice(null)
     setHasRolled(false)
@@ -350,6 +453,12 @@ export default function App() {
     const b = createBoard()
     setBoard(b)
     setPlayers(createPlayers(count))
+    setDeck(createDevDeck())
+    setPlayedDev(false)
+    setFreeRoads(0)
+    setPicking(null)
+    setComposingOffer(false)
+    setOffer(null)
     setPhase('setup')
     setSetupIndex(0)
     setPendingRoadFrom(null)
@@ -361,17 +470,33 @@ export default function App() {
     setMessage('Place your first settlement.')
   }
 
-  const winner = players.find((p) => victoryPoints(p) >= 10)
+  const largestArmy = largestArmyHolder(players)
+  const winner = players.find((p) => victoryPoints(p, largestArmy) >= 10)
 
   return (
     <div className="app" style={{ '--turn-color': current.color } as React.CSSProperties}>
       <header className="topbar">
         <h1 className="topbar__title">Catan</h1>
-        <PlayerStrip players={players} current={currentId} />
+        <PlayerStrip players={players} current={currentId} largestArmy={largestArmy} />
         <button className="btn btn--ghost" onClick={() => setPhase('lobby')}>
           New game
         </button>
       </header>
+
+      {picking === 'monopoly' && (
+        <ResourcePicker
+          title="Monopoly — take every card of one type"
+          onPick={takeMonopoly}
+        />
+      )}
+
+      {picking === 'plenty' && (
+        <ResourcePicker
+          title="Year of plenty"
+          hint={`Take ${plentyLeft} more from the bank.`}
+          onPick={takePlenty}
+        />
+      )}
 
       {composingOffer && (
         <OfferComposer
@@ -439,6 +564,16 @@ export default function App() {
         <HandBar player={current} rates={phase === 'play' ? rates : undefined} />
         {phase === 'play' && hasRolled && mode !== 'robber' && (
           <TradeBar player={current} rates={rates} onTrade={bankTrade} />
+        )}
+        {phase === 'play' && hasRolled && (
+          <DevBar
+            player={current}
+            deckCount={deck.length}
+            busy={mode === 'robber' || freeRoads > 0 || picking !== null}
+            playedThisTurn={playedDev}
+            onBuy={buyDev}
+            onPlay={playDev}
+          />
         )}
         {phase === 'play' && (
           <ActionBar

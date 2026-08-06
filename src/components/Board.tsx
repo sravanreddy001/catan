@@ -33,6 +33,10 @@ interface Props {
   onTile: (id: string) => void
 }
 
+/** Piece silhouettes, drawn around the vertex at the origin. */
+const SETTLEMENT_SHAPE = '-8,7 -8,-2 0,-10 8,-2 8,7'
+const CITY_SHAPE = '-13,8 -13,-1 -6,-8 1,-1 1,-5 7,-12 13,-5 13,8'
+
 /** 6 and 8 are the highest-probability numbers and are printed in red. */
 function numberColor(n: number): string {
   return n === 6 || n === 8 ? '#b3261e' : '#3b3226'
@@ -203,25 +207,25 @@ export default function Board({
               className={target ? 'piece piece--target' : 'piece'}
               onClick={target ? () => onVertex(v.id) : undefined}
             >
-              {isCity ? (
+              {/* Settlement reads as a small house, city as a larger house with
+                  an adjoining block, so the two differ in silhouette and size
+                  rather than colour alone. */}
+              <polygon
+                points={isCity ? CITY_SHAPE : SETTLEMENT_SHAPE}
+                transform={`translate(${v.x} ${v.y})`}
+                fill={owner.color}
+                stroke={owner.dark}
+                strokeWidth={2.5}
+                strokeLinejoin="round"
+              />
+              {isCity && (
                 <rect
-                  x={v.x - 13}
-                  y={v.y - 11}
-                  width={26}
-                  height={22}
-                  rx={4}
-                  fill={owner.color}
-                  stroke={owner.dark}
-                  strokeWidth={3}
-                />
-              ) : (
-                <circle
-                  cx={v.x}
-                  cy={v.y}
-                  r={11}
-                  fill={owner.color}
-                  stroke={owner.dark}
-                  strokeWidth={3}
+                  x={v.x - 9}
+                  y={v.y + 1}
+                  width={5}
+                  height={5}
+                  fill={owner.dark}
+                  opacity={0.6}
                 />
               )}
             </g>
