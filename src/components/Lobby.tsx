@@ -33,7 +33,7 @@ export default function Lobby({
             <h2 className="modal__title">Catan</h2>
             <button className="lobby__count" onClick={() => setScreen('offline')}>
               Play offline
-              <small>one device, passed around</small>
+              <small>you against AI opponents</small>
             </button>
             <button className="lobby__count" onClick={() => setScreen('online')}>
               Play online
@@ -49,15 +49,15 @@ export default function Lobby({
 
         {screen === 'offline' && (
           <>
-            <h2 className="modal__title">How many players in total?</h2>
+            <h2 className="modal__title">How many opponents?</h2>
             <div className="lobby__counts">
-              {[1, 2, 3, 4].map((n) => (
+              {[1, 2, 3].map((n) => (
                 <button key={n} className="lobby__count" onClick={() => onOffline(n)}>
                   {n}
                 </button>
               ))}
             </div>
-            <p className="lobby__hint">Including you. Everyone plays on this device.</p>
+            <p className="lobby__hint">Not counting you. All opponents are AI.</p>
             <button className="btn" onClick={() => setScreen('mode')}>
               Back
             </button>

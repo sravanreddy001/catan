@@ -23,7 +23,8 @@ import {
   type Action,
   type GameState,
 } from './game/engine'
-import { largestArmyHolder, victoryPoints, type BuildKind } from './game/players'
+import { chooseAction, respondToOffer } from './game/ai'
+import { largestArmyHolder, victoryPoints, type BuildKind, type PlayerId } from './game/players'
 import {
   GuestSession,
   HostSession,
@@ -47,6 +48,10 @@ export default function App() {
   const [seat, setSeat] = useState<number | null>(null)
   const [rolling, setRolling] = useState(false)
   const [composingOffer, setComposingOffer] = useState(false)
+  /** Seats played by the AI (offline only). */
+  const [botSeats, setBotSeats] = useState<number[]>([])
+  /** Bumped after each bot move so a no-op action still re-triggers the loop. */
+  const [botTick, setBotTick] = useState(0)
 
   const host = useRef<HostSession | null>(null)
   const guest = useRef<GuestSession | null>(null)
@@ -85,9 +90,42 @@ export default function App() {
     }
   }, [])
 
-  function startOffline(count: number) {
-    setSeat(null)
-    setState(createGame(count))
+  // Bot turns: one action per tick, paced so a human can follow what happened.
+  useEffect(() => {
+    if (!state || botSeats.length === 0) return
+    const active = currentPlayerId(state)
+    if (!botSeats.includes(active)) return
+
+    const timer = window.setTimeout(() => {
+      const action = chooseAction(state, active)
+      dispatch(action ?? { type: 'endTurn' })
+      setBotTick((t) => t + 1)
+    }, 700)
+    return () => window.clearTimeout(timer)
+  }, [state, botSeats, botTick, dispatch])
+
+  // A bot answers a trade offer pointed at it.
+  useEffect(() => {
+    if (!state?.offer || botSeats.length === 0) return
+    const offer = state.offer
+    const responders = botSeats.filter((s) =>
+      offer.to === 'any' ? s !== offer.from : s === offer.to,
+    )
+    if (responders.length === 0) return
+
+    const timer = window.setTimeout(() => {
+      const taker = responders.find((s) => respondToOffer(state, s) === 'accept')
+      dispatch(taker !== undefined ? { type: 'acceptOffer', responder: taker as PlayerId } : { type: 'declineOffer' })
+    }, 900)
+    return () => window.clearTimeout(timer)
+  }, [state, botSeats, dispatch])
+
+  /** Offline is you (seat 0) against AI opponents in the remaining seats. */
+  function startOffline(opponents: number) {
+    const names = ['You', ...Array.from({ length: opponents }, (_, i) => `Bot ${i + 1}`)]
+    setSeat(0)
+    setBotSeats(names.map((_, i) => i).filter((i) => i > 0))
+    setState(createGame(names.length, names))
     setStage({ kind: 'playing' })
   }
 
@@ -156,7 +194,12 @@ export default function App() {
     const s = saved.current
     if (!s?.state) return
     setState(s.state)
-    setSeat(s.seat >= 0 && s.role === 'guest' ? s.seat : s.role === 'host' ? 0 : null)
+    setSeat(s.seat >= 0 ? s.seat : 0)
+    // Offline games are saved with no room code; their bots are the seats the
+    // engine named "Bot n" when the game was created.
+    setBotSeats(
+      s.code ? [] : s.state.players.map((p, i) => (p.name.startsWith('Bot') ? i : -1)).filter((i) => i >= 0),
+    )
     setStage({ kind: 'playing' })
   }
 
@@ -167,6 +210,7 @@ export default function App() {
     guest.current = null
     setState(null)
     setSeat(null)
+    setBotSeats([])
     setStage({ kind: 'lobby' })
   }
 

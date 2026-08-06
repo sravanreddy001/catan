@@ -223,12 +223,13 @@ function produce(state: GameState, sum: number): GameState {
     return { ...p, hand }
   })
 
-  const mine = gains[currentPlayerId(state)]
+  const active = state.players[currentPlayerId(state)]
+  const mine = gains[active.id]
   const summary = mine
-    ? Object.entries(mine)
+    ? `${active.name} got ${Object.entries(mine)
         .map(([res, n]) => `+${n} ${res}`)
-        .join(', ')
-    : 'nothing for you'
+        .join(', ')}`
+    : `nothing for ${active.name}`
   return { ...state, players, message: `Rolled ${sum} — ${summary}.` }
 }
 

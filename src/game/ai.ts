@@ -1,0 +1,238 @@
+// Medium-strength bot. Pure: takes a state and returns the next action it
+// wants, exactly as a human would dispatch it, so it plays by the same rules
+// the reducer enforces — it cannot make an illegal move by construction.
+
+import type { Resource } from './board'
+import {
+  currentPlayerId,
+  edgeTargets,
+  ratesFor,
+  vertexTargets,
+  type Action,
+  type GameState,
+} from './engine'
+import { COSTS, canAfford, canAffordDev, victoryPoints, type Player } from './players'
+
+const ALL: Resource[] = ['brick', 'lumber', 'wool', 'grain', 'ore']
+
+/** Ways to roll each number: 6 and 8 are the best, 2 and 12 the worst. */
+function pips(n: number | undefined): number {
+  return n === undefined ? 0 : 6 - Math.abs(7 - n)
+}
+
+function tilesAt(state: GameState, vertexId: string) {
+  return (state.board.vertexTiles[vertexId] ?? []).map(
+    (tid) => state.board.tiles.find((t) => t.id === tid)!,
+  )
+}
+
+/**
+ * Corner quality: total pips, plus a bonus for touching resources the player
+ * does not already have — variety matters more than raw volume early on.
+ */
+function vertexScore(state: GameState, vertexId: string, player: Player): number {
+  const tiles = tilesAt(state, vertexId)
+  const owned = new Set<Resource>()
+  for (const v of [...player.settlements, ...player.cities]) {
+    for (const t of tilesAt(state, v)) if (t.type !== 'desert') owned.add(t.type as Resource)
+  }
+
+  let score = 0
+  for (const t of tiles) {
+    if (t.type === 'desert') continue
+    score += pips(t.number)
+    if (!owned.has(t.type as Resource)) score += 2.5
+    // Brick and lumber early: roads and settlements come before ore.
+    if (t.type === 'brick' || t.type === 'lumber') score += 0.75
+  }
+  return score
+}
+
+function best<T>(items: T[], score: (item: T) => number): T | null {
+  let bestItem: T | null = null
+  let bestScore = -Infinity
+  for (const item of items) {
+    const s = score(item)
+    if (s > bestScore) {
+      bestScore = s
+      bestItem = item
+    }
+  }
+  return bestItem
+}
+
+function handTotal(p: Player): number {
+  return Object.values(p.hand).reduce((a, b) => a + b, 0)
+}
+
+/** What the player still needs for a target build, resource by resource. */
+function missingFor(
+  player: Player,
+  kind: 'road' | 'settlement' | 'city',
+): Partial<Record<Resource, number>> {
+  const gap: Partial<Record<Resource, number>> = {}
+  for (const [res, n] of Object.entries(COSTS[kind])) {
+    const short = (n ?? 0) - player.hand[res as Resource]
+    if (short > 0) gap[res as Resource] = short
+  }
+  return gap
+}
+
+/** Robber goes on the strongest tile of whoever is winning, never our own. */
+function robberTarget(state: GameState, seat: number): string {
+  const me = state.players[seat]
+  const mine = new Set([...me.settlements, ...me.cities])
+  const leader = best(
+    state.players.filter((p) => p.id !== seat),
+    (p) => victoryPoints(p) * 10 + handTotal(p),
+  )
+
+  const candidates = state.board.tiles.filter((t) => {
+    if (t.id === state.robberTile || t.type === 'desert') return false
+    return !state.board.tileVertices[t.id].some((v) => mine.has(v))
+  })
+
+  const scored = best(candidates, (t) => {
+    const corners = state.board.tileVertices[t.id]
+    const hitsLeader = leader
+      ? corners.some((v) => leader.settlements.includes(v) || leader.cities.includes(v))
+      : false
+    const anyone = state.players.some(
+      (p) => p.id !== seat && corners.some((v) => p.settlements.includes(v) || p.cities.includes(v)),
+    )
+    return pips(t.number) + (hitsLeader ? 12 : 0) + (anyone ? 4 : 0)
+  })
+
+  return scored?.id ?? state.board.tiles.find((t) => t.id !== state.robberTile)!.id
+}
+
+/** Peek at what a build mode would offer without committing to it. */
+function targetsFor(state: GameState, mode: 'settlement' | 'road'): string[] {
+  const probe: GameState = { ...state, mode }
+  return mode === 'road' ? [...edgeTargets(probe)] : [...vertexTargets(probe)]
+}
+
+function tradeTowardsGoal(state: GameState, seat: number): Action | null {
+  const me = state.players[seat]
+  const rates = ratesFor(state, seat)
+  const goal = me.settlements.length > 0 && me.cities.length < 4 ? 'city' : 'settlement'
+  const need = missingFor(me, goal)
+  const wanted = (Object.keys(need) as Resource[])[0]
+  if (!wanted) return null
+
+  // Only trade away a resource we are not short of and hold a surplus of.
+  for (const give of ALL) {
+    if (give === wanted || need[give]) continue
+    if (me.hand[give] >= rates[give] + 1) return { type: 'bankTrade', give, get: wanted }
+  }
+  return null
+}
+
+/**
+ * The bot's move for the current turn. Returns null when it has nothing left
+ * to do, which the caller turns into an end of turn.
+ */
+export function chooseAction(state: GameState, seat: number): Action | null {
+  if (currentPlayerId(state) !== seat) return null
+  const me = state.players[seat]
+
+  // --- forced follow-ups first -------------------------------------------
+  if (state.picking === 'monopoly') {
+    const totals = ALL.map((res) => ({
+      res,
+      n: state.players.reduce((sum, p) => (p.id === seat ? sum : sum + p.hand[res]), 0),
+    }))
+    return { type: 'monopoly', res: best(totals, (t) => t.n)!.res }
+  }
+
+  if (state.picking === 'plenty') {
+    const need = { ...missingFor(me, 'settlement'), ...missingFor(me, 'city') }
+    return { type: 'plenty', res: (Object.keys(need) as Resource[])[0] ?? 'ore' }
+  }
+
+  if (state.mode === 'robber') return { type: 'tile', id: robberTarget(state, seat) }
+
+  // --- opening placements -------------------------------------------------
+  if (state.phase === 'setup') {
+    if (state.pendingRoadFrom) {
+      const edges = [...edgeTargets(state)]
+      if (!edges.length) return null
+      // Head towards the better of the road's two ends.
+      const pickEdge = best(edges, (id) => {
+        const e = state.board.edges.find((x) => x.id === id)!
+        const far = e.a === state.pendingRoadFrom ? e.b : e.a
+        return vertexScore(state, far, me)
+      })
+      return { type: 'edge', id: pickEdge! }
+    }
+    const spots = [...vertexTargets(state)]
+    if (!spots.length) return null
+    return { type: 'vertex', id: best(spots, (v) => vertexScore(state, v, me))! }
+  }
+
+  // --- normal turn --------------------------------------------------------
+  if (!state.hasRolled) return { type: 'roll' }
+
+  // Finish a build already committed to.
+  if (state.mode === 'city' || state.mode === 'settlement') {
+    const target = best([...vertexTargets(state)], (v) => vertexScore(state, v, me))
+    return target ? { type: 'vertex', id: target } : { type: 'setMode', mode: null }
+  }
+  if (state.mode === 'road') {
+    const edges = [...edgeTargets(state)]
+    if (!edges.length) return { type: 'setMode', mode: null }
+    const pickEdge = best(edges, (id) => {
+      const e = state.board.edges.find((x) => x.id === id)!
+      return Math.max(vertexScore(state, e.a, me), vertexScore(state, e.b, me))
+    })
+    return { type: 'edge', id: pickEdge! }
+  }
+
+  // Knights win the largest army bonus and the robber is worth moving.
+  if (!state.playedDev) {
+    const playable = me.devCards.find((c) => c.ready && c.kind !== 'victory')
+    if (playable) return { type: 'playDev', cardId: playable.id }
+  }
+
+  // Cities first (2 VP and double production), then settlements, then roads.
+  if (canAfford(me, 'city') && me.settlements.length > 0) return { type: 'setMode', mode: 'city' }
+  if (canAfford(me, 'settlement') && targetsFor(state, 'settlement').length > 0) {
+    return { type: 'setMode', mode: 'settlement' }
+  }
+  if (canAffordDev(me) && state.deck.length > 0 && handTotal(me) >= 4) return { type: 'buyDev' }
+  if (canAfford(me, 'road') && me.roads.length < 8 && targetsFor(state, 'road').length > 0) {
+    return { type: 'setMode', mode: 'road' }
+  }
+
+  const trade = tradeTowardsGoal(state, seat)
+  if (trade) return trade
+
+  return null
+}
+
+/**
+ * How a bot answers a trade offer aimed at it: accept only when it can cover
+ * the request and the incoming cards help more than what it gives up.
+ */
+export function respondToOffer(state: GameState, seat: number): 'accept' | 'decline' {
+  const offer = state.offer
+  if (!offer) return 'decline'
+  const me = state.players[seat]
+
+  const canCover = Object.entries(offer.want).every(
+    ([res, n]) => me.hand[res as Resource] >= (n ?? 0),
+  )
+  if (!canCover) return 'decline'
+
+  const goal = me.settlements.length > 0 ? 'city' : 'settlement'
+  const need = missingFor(me, goal)
+  const gain = Object.entries(offer.give).reduce(
+    (sum, [res, n]) => sum + (need[res as Resource] ? (n ?? 0) * 2 : (n ?? 0) * 0.5),
+    0,
+  )
+  const loss = Object.entries(offer.want).reduce(
+    (sum, [res, n]) => sum + (need[res as Resource] ? (n ?? 0) * 2 : (n ?? 0) * 0.75),
+    0,
+  )
+  return gain > loss ? 'accept' : 'decline'
+}
