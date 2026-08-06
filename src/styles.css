@@ -1,0 +1,753 @@
+:root {
+  --bg: #0d2438;
+  --sea: #14405f;
+  --panel: #10314a;
+  --panel-2: #0b2438;
+  --line: rgba(255, 255, 255, 0.12);
+  --text: #eaf1f7;
+  --muted: #9db4c7;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  height: 100dvh;
+}
+
+/* ---------- top bar ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: max(8px, env(safe-area-inset-top)) 12px 8px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar__title {
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+  color: #f3c969;
+}
+
+.strip {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.strip::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.chip--active {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 22%, transparent);
+}
+
+.chip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.chip__vp {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- board ---------- */
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  background: radial-gradient(circle at 50% 35%, #1b5177 0%, var(--sea) 55%, var(--bg) 100%);
+}
+
+.board {
+  width: 100%;
+  height: 100%;
+  max-width: min(100%, 900px);
+  touch-action: manipulation;
+}
+
+.tile__icon {
+  font-size: 26px;
+}
+
+.tile__number {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.tile__pips {
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.tile__robber {
+  font-size: 34px;
+}
+
+.port__ratio {
+  font-size: 12px;
+  font-weight: 700;
+  fill: #f0d9a0;
+}
+
+.port__icon {
+  font-size: 12px;
+}
+
+.tile--target {
+  cursor: pointer;
+}
+
+.tile--target polygon {
+  stroke: #ffd977;
+  stroke-width: 4;
+}
+
+/* Targets pulse so they are obvious on a small screen. */
+.spot--target {
+  fill: rgba(255, 255, 255, 0.9);
+  stroke: #ffd977;
+  stroke-width: 3;
+  cursor: pointer;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.road--target {
+  opacity: 0.55;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* Touch targets: generous invisible hit areas over the thin drawn pieces. */
+.road__hit,
+.spot__hit {
+  cursor: pointer;
+}
+
+.piece--target {
+  cursor: pointer;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spot--target,
+  .road--target {
+    animation: none;
+  }
+}
+
+/* ---------- bottom dock ---------- */
+
+.dock {
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dock__row--status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.turnpill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--turn-color);
+  color: #10202c;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.status {
+  flex: 1;
+  color: var(--muted);
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.die {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: #f4ead6;
+  color: #23303c;
+  font-weight: 700;
+}
+
+.dice__sum {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  min-width: 22px;
+}
+
+.dice--rolling .die {
+  animation: shake 0.18s linear infinite;
+}
+
+@keyframes shake {
+  50% {
+    transform: translateY(-3px) rotate(8deg);
+  }
+}
+
+.hand {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+/* ---------- modals (lobby, trade offers) ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(6, 20, 32, 0.82);
+  backdrop-filter: blur(3px);
+  overflow-y: auto;
+}
+
+.modal__panel {
+  width: min(100%, 420px);
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal__title {
+  margin: 0;
+  font-size: 16px;
+  text-align: center;
+}
+
+.modal__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.offer__grid {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.offer__head {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.offer__res {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 18px;
+}
+
+.offer__res small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stepper__btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stepper__btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.stepper__n {
+  min-width: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.offer__to {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.offer__responders {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- lobby ---------- */
+
+.lobby {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 20, 32, 0.82);
+  backdrop-filter: blur(3px);
+  padding: 20px;
+}
+
+.lobby__panel {
+  width: min(100%, 360px);
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+
+.lobby__title {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.lobby__counts {
+  display: flex;
+  gap: 10px;
+}
+
+.lobby__count {
+  flex: 1;
+  min-height: 56px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lobby__count:hover {
+  background: #f3c969;
+  color: #1a2330;
+}
+
+.field {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: center;
+}
+
+.lobby__divider {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lobby__count small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.seats__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 14px;
+}
+
+.seats__row small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.seats__row--empty {
+  border: 1px dashed var(--line);
+  background: none;
+  color: var(--muted);
+}
+
+.lobby__hint {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Cards pile upwards, newest on top, overlapping by --overlap. */
+.stack__cards {
+  --card-h: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  min-height: var(--card-h);
+}
+
+.minicard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 30px;
+  /* Card size scales up on wider screens; phones keep the dock short. */
+  height: var(--card-h);
+  border-radius: 6px;
+  background: #f2ead9;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.3);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.minicard + .minicard {
+  margin-top: calc(var(--overlap) - var(--card-h));
+}
+
+.minicard--empty {
+  background: rgba(255, 255, 255, 0.05);
+  border-style: dashed;
+  opacity: 0.4;
+}
+
+.card__rate {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.trade {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trade__label {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.trade__row {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+
+.swap {
+  flex: 1;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.swap:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.swap--on {
+  outline: 2px solid #ffd977;
+}
+
+.swap__rate {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.swap--cancel {
+  flex: 0 0 40px;
+}
+
+.devbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.devbar__cards {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.devbar__cards::-webkit-scrollbar {
+  display: none;
+}
+
+.devbar__empty {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.devcard {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.devcard:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Bought this turn — not playable until the next one. */
+.devcard--new {
+  border-style: dashed;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 46px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn__label {
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+.btn__cost {
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.btn--primary {
+  background: #f3c969;
+  color: #1a2330;
+  border-color: transparent;
+  font-weight: 700;
+}
+
+.btn--on {
+  outline: 2px solid #ffd977;
+  background: rgba(255, 217, 119, 0.2);
+}
+
+.btn--ghost {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* ---------- narrow screens ---------- */
+
+/* Four chips plus a title do not fit on a phone: drop the wordmark and show
+   names only for the player whose turn it is. */
+@media (max-width: 560px) {
+  .topbar__title {
+    display: none;
+  }
+
+  .chip__name {
+    display: none;
+  }
+
+  .chip--active .chip__name {
+    display: inline;
+  }
+
+  .btn__cost {
+    font-size: 10px;
+  }
+}
+
+/* ---------- wide screens ---------- */
+
+@media (min-width: 900px) {
+  .dock {
+    flex-direction: row;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 24px;
+  }
+
+  .dock__row--status {
+    flex: 0 0 300px;
+  }
+
+  .hand {
+    flex: 1;
+  }
+
+  .actions {
+    flex: 0 0 420px;
+  }
+
+}
+
+/* Card sizing scales before the dock relayout: even a small laptop window has
+   the vertical room a phone does not. */
+@media (min-width: 600px) {
+  .stack__cards {
+    --card-h: 38px;
+  }
+
+  .minicard {
+    font-size: 17px;
+    min-width: 44px;
+  }
+
+  .minicard + .minicard {
+    margin-top: calc(var(--overlap) * 1.5 - var(--card-h));
+  }
+}
