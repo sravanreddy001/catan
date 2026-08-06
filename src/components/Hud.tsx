@@ -1,13 +1,17 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { Resource } from '../game/board'
 import {
   COSTS,
   RESOURCES,
   RESOURCE_ICON,
   canAfford,
+  hasCards,
+  isEmptyBundle,
   victoryPoints,
   type BuildKind,
   type Player,
+  type PlayerId,
+  type TradeOffer,
 } from '../game/players'
 
 export function PlayerStrip({ players, current }: { players: Player[]; current: number }) {
@@ -128,24 +132,185 @@ function costLabel(kind: BuildKind): string {
     .join('')
 }
 
+type Bundle = Partial<Record<Resource, number>>
+
+function bundleText(b: Bundle): string {
+  const parts = Object.entries(b)
+    .filter(([, n]) => n)
+    .map(([res, n]) => `${n}${RESOURCE_ICON[res as Resource]}`)
+  return parts.length ? parts.join(' ') : '—'
+}
+
+function Stepper({
+  value,
+  max,
+  onChange,
+}: {
+  value: number
+  max?: number
+  onChange: (n: number) => void
+}) {
+  return (
+    <span className="stepper">
+      <button className="stepper__btn" disabled={value === 0} onClick={() => onChange(value - 1)}>
+        −
+      </button>
+      <span className="stepper__n">{value}</span>
+      <button
+        className="stepper__btn"
+        disabled={max !== undefined && value >= max}
+        onClick={() => onChange(value + 1)}
+      >
+        +
+      </button>
+    </span>
+  )
+}
+
+interface OfferComposerProps {
+  player: Player
+  players: Player[]
+  onCancel: () => void
+  onPropose: (offer: TradeOffer) => void
+}
+
+/** Build an offer: what you put up, what you want, and who it goes to. */
+export function OfferComposer({ player, players, onCancel, onPropose }: OfferComposerProps) {
+  const [give, setGive] = useState<Bundle>({})
+  const [want, setWant] = useState<Bundle>({})
+  const [to, setTo] = useState<PlayerId | 'any'>('any')
+
+  const others = players.filter((p) => p.id !== player.id)
+  const valid = !isEmptyBundle(give) && !isEmptyBundle(want)
+
+  return (
+    <div className="modal">
+      <div className="modal__panel">
+        <h2 className="modal__title">Offer a trade</h2>
+
+        <div className="offer__grid">
+          <span className="offer__head" />
+          <span className="offer__head">You give</span>
+          <span className="offer__head">You want</span>
+          {RESOURCES.map((r) => (
+            <Fragment key={r}>
+              <span className="offer__res">
+                {RESOURCE_ICON[r]}
+                <small>{player.hand[r]}</small>
+              </span>
+              <Stepper
+                value={give[r] ?? 0}
+                max={player.hand[r]}
+                onChange={(n) => setGive({ ...give, [r]: n })}
+              />
+              <Stepper value={want[r] ?? 0} onChange={(n) => setWant({ ...want, [r]: n })} />
+            </Fragment>
+          ))}
+        </div>
+
+        <div className="offer__to">
+          <span className="trade__label">To:</span>
+          <button
+            className={`swap${to === 'any' ? ' swap--on' : ''}`}
+            onClick={() => setTo('any')}
+          >
+            Anyone
+          </button>
+          {others.map((p) => (
+            <button
+              key={p.id}
+              className={`swap${to === p.id ? ' swap--on' : ''}`}
+              onClick={() => setTo(p.id)}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="modal__actions">
+          <button className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            className="btn btn--primary"
+            disabled={!valid}
+            onClick={() => onPropose({ from: player.id, to, give, want })}
+          >
+            Propose
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface OfferResponseProps {
+  offer: TradeOffer
+  players: Player[]
+  onAccept: (responder: PlayerId) => void
+  onDecline: () => void
+}
+
+/** Hot-seat: pass the device, the named player answers. */
+export function OfferResponse({ offer, players, onAccept, onDecline }: OfferResponseProps) {
+  const proposer = players.find((p) => p.id === offer.from)!
+  const responders = players.filter((p) =>
+    offer.to === 'any' ? p.id !== offer.from : p.id === offer.to,
+  )
+
+  return (
+    <div className="modal">
+      <div className="modal__panel">
+        <h2 className="modal__title">
+          {proposer.name} offers {bundleText(offer.give)} for {bundleText(offer.want)}
+        </h2>
+        <div className="offer__responders">
+          {responders.map((p) => {
+            const able = hasCards(p, offer.want)
+            return (
+              <button
+                key={p.id}
+                className="btn btn--primary"
+                disabled={!able}
+                onClick={() => onAccept(p.id)}
+              >
+                <span className="btn__label">{p.name} accepts</span>
+                {!able && <span className="btn__cost">not enough cards</span>}
+              </button>
+            )
+          })}
+        </div>
+        <button className="btn" onClick={onDecline}>
+          Decline / cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 interface ActionBarProps {
   player: Player
   mode: BuildKind | 'robber' | null
   hasRolled: boolean
+  /** Hidden in a solo game — nobody to trade with. */
+  canOffer: boolean
   onBuild: (kind: BuildKind) => void
   onRoll: () => void
   onEndTurn: () => void
   onCancel: () => void
+  onOffer: () => void
 }
 
 export function ActionBar({
   player,
   mode,
   hasRolled,
+  canOffer,
   onBuild,
   onRoll,
   onEndTurn,
   onCancel,
+  onOffer,
 }: ActionBarProps) {
   const kinds: BuildKind[] = ['road', 'settlement', 'city']
   return (
@@ -167,6 +332,12 @@ export function ActionBar({
               <span className="btn__cost">{costLabel(k)}</span>
             </button>
           ))}
+          {canOffer && (
+            <button className="btn" onClick={onOffer} disabled={mode === 'robber'}>
+              <span className="btn__label">Offer</span>
+              <span className="btn__cost">to players</span>
+            </button>
+          )}
           <button className="btn btn--primary" onClick={onEndTurn} disabled={mode === 'robber'}>
             End turn
           </button>

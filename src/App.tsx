@@ -1,15 +1,26 @@
 import { useMemo, useState } from 'react'
 import './styles.css'
 import BoardView from './components/Board'
-import { ActionBar, Dice, HandBar, PlayerStrip, TradeBar } from './components/Hud'
+import {
+  ActionBar,
+  Dice,
+  HandBar,
+  OfferComposer,
+  OfferResponse,
+  PlayerStrip,
+  TradeBar,
+} from './components/Hud'
 import { createBoard, tradeRates, vertexNeighbours, type Board, type Resource } from './game/board'
 import {
+  applyTrade,
   canAfford,
   createPlayers,
   pay,
   victoryPoints,
   type BuildKind,
   type Player,
+  type PlayerId,
+  type TradeOffer,
 } from './game/players'
 
 type Mode = BuildKind | 'robber' | null
@@ -69,6 +80,8 @@ export default function App() {
     () => board.tiles.find((t) => t.type === 'desert')?.id ?? board.tiles[0].id,
   )
   const [message, setMessage] = useState('Place your first settlement.')
+  const [composingOffer, setComposingOffer] = useState(false)
+  const [offer, setOffer] = useState<TradeOffer | null>(null)
 
   const order = useMemo(() => setupOrder(players.length), [players.length])
   const currentId = phase === 'setup' ? order[setupIndex] : turn
@@ -309,11 +322,21 @@ export default function App() {
     setMessage(`Traded ${rate} ${give} for 1 ${get}.`)
   }
 
+  function acceptOffer(responder: PlayerId) {
+    if (!offer) return
+    setPlayers((prev) => applyTrade(prev, offer.from, responder, offer.give, offer.want))
+    const name = players.find((p) => p.id === responder)!.name
+    setOffer(null)
+    setMessage(`${name} accepted the trade.`)
+  }
+
   function endTurn() {
     setTurn((t) => (t + 1) % players.length)
     setMode(null)
     setDice(null)
     setHasRolled(false)
+    setComposingOffer(false)
+    setOffer(null)
     setMessage(`${players[(turn + 1) % players.length].name} to roll.`)
   }
 
@@ -349,6 +372,31 @@ export default function App() {
           New game
         </button>
       </header>
+
+      {composingOffer && (
+        <OfferComposer
+          player={current}
+          players={players}
+          onCancel={() => setComposingOffer(false)}
+          onPropose={(o) => {
+            setComposingOffer(false)
+            setOffer(o)
+            setMessage('Pass the device — waiting on a response.')
+          }}
+        />
+      )}
+
+      {offer && (
+        <OfferResponse
+          offer={offer}
+          players={players}
+          onAccept={acceptOffer}
+          onDecline={() => {
+            setOffer(null)
+            setMessage('Offer declined.')
+          }}
+        />
+      )}
 
       {phase === 'lobby' && (
         <div className="lobby">
@@ -401,6 +449,8 @@ export default function App() {
             onRoll={roll}
             onEndTurn={endTurn}
             onCancel={() => setMode(null)}
+            canOffer={players.length > 1}
+            onOffer={() => setComposingOffer(true)}
           />
         )}
       </footer>

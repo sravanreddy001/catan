@@ -68,6 +68,40 @@ export function pay(player: Player, kind: BuildKind): Player {
   return { ...player, hand }
 }
 
+/** A proposed swap between two players. `to: 'any'` is an open offer. */
+export interface TradeOffer {
+  from: PlayerId
+  to: PlayerId | 'any'
+  give: Partial<Record<Resource, number>>
+  want: Partial<Record<Resource, number>>
+}
+
+export function hasCards(player: Player, cards: Partial<Record<Resource, number>>): boolean {
+  return Object.entries(cards).every(([res, n]) => player.hand[res as Resource] >= (n ?? 0))
+}
+
+export function isEmptyBundle(cards: Partial<Record<Resource, number>>): boolean {
+  return Object.values(cards).every((n) => !n)
+}
+
+/** Move a bundle out of one hand and into another. */
+export function applyTrade(
+  players: Player[],
+  from: PlayerId,
+  to: PlayerId,
+  give: Partial<Record<Resource, number>>,
+  want: Partial<Record<Resource, number>>,
+): Player[] {
+  return players.map((p) => {
+    if (p.id !== from && p.id !== to) return p
+    const hand = { ...p.hand }
+    const [out, incoming] = p.id === from ? [give, want] : [want, give]
+    for (const [res, n] of Object.entries(out)) hand[res as Resource] -= n ?? 0
+    for (const [res, n] of Object.entries(incoming)) hand[res as Resource] += n ?? 0
+    return { ...p, hand }
+  })
+}
+
 export function victoryPoints(player: Player): number {
   return player.settlements.length + player.cities.length * 2
 }
