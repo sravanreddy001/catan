@@ -249,3 +249,38 @@ export function vertexNeighbours(board: Board, vertexId: string): string[] {
   }
   return out
 }
+
+/**
+ * Longest chain of a player's own roads without reusing an edge. An
+ * opponent's settlement/city breaks the road: the path may still touch that
+ * vertex, but cannot continue through it into more of the player's edges.
+ */
+export function longestRoadLength(
+  board: Board,
+  roadEdgeIds: string[],
+  blockedVertices: Set<string>,
+): number {
+  if (roadEdgeIds.length === 0) return 0
+  const owned = new Set(roadEdgeIds)
+  const adjacency = new Map<string, Array<{ to: string; edge: string }>>()
+  for (const e of board.edges) {
+    if (!owned.has(e.id)) continue
+    ;(adjacency.get(e.a) ?? adjacency.set(e.a, []).get(e.a)!).push({ to: e.b, edge: e.id })
+    ;(adjacency.get(e.b) ?? adjacency.set(e.b, []).get(e.b)!).push({ to: e.a, edge: e.id })
+  }
+
+  let best = 0
+  const visited = new Set<string>()
+  const walk = (vertex: string, length: number) => {
+    best = Math.max(best, length)
+    if (blockedVertices.has(vertex) && length > 0) return
+    for (const { to, edge } of adjacency.get(vertex) ?? []) {
+      if (visited.has(edge)) continue
+      visited.add(edge)
+      walk(to, length + 1)
+      visited.delete(edge)
+    }
+  }
+  for (const v of adjacency.keys()) walk(v, 0)
+  return best
+}

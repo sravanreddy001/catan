@@ -11,7 +11,15 @@ import {
   type Action,
   type GameState,
 } from './engine'
-import { COSTS, canAfford, canAffordDev, victoryPoints, type Player } from './players'
+import {
+  COSTS,
+  canAfford,
+  canAffordDev,
+  randomDiscard,
+  victoryPoints,
+  type Player,
+  type PlayerId,
+} from './players'
 
 const ALL: Resource[] = ['brick', 'lumber', 'wool', 'grain', 'ore']
 
@@ -216,6 +224,13 @@ export function chooseAction(state: GameState, seat: number): Action | null {
   if (trade) return trade
 
   return null
+}
+
+/** A bot always discards a random legal bundle when forced to. */
+export function chooseDiscard(state: GameState, seat: number): Partial<Record<Resource, number>> {
+  const owed = state.discards[seat as PlayerId]
+  if (!owed) return {}
+  return randomDiscard(state.players[seat], owed)
 }
 
 /**

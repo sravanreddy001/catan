@@ -6,6 +6,7 @@ import {
   ActionBar,
   Dice,
   DevBar,
+  DiscardPicker,
   HandBar,
   OfferComposer,
   OfferResponse,
@@ -17,13 +18,14 @@ import {
   createGame,
   currentPlayerId,
   edgeTargets as edgeTargetsOf,
+  longestRoadHolder,
   ratesFor,
   reduce,
   vertexTargets as vertexTargetsOf,
   type Action,
   type GameState,
 } from './game/engine'
-import { chooseAction, respondToOffer } from './game/ai'
+import { chooseAction, chooseDiscard, respondToOffer } from './game/ai'
 import { largestArmyHolder, victoryPoints, type BuildKind, type PlayerId } from './game/players'
 import {
   GuestSession,
@@ -103,6 +105,18 @@ export default function App() {
     }, 700)
     return () => window.clearTimeout(timer)
   }, [state, botSeats, botTick, dispatch])
+
+  // A bot discards on its own the moment a 7 leaves it owing cards.
+  useEffect(() => {
+    if (!state) return
+    const owedSeat = botSeats.find((s) => state.discards[s as PlayerId])
+    if (owedSeat === undefined) return
+
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'discard', playerId: owedSeat as PlayerId, cards: chooseDiscard(state, owedSeat) })
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [state, botSeats, dispatch])
 
   // A bot answers a trade offer pointed at it.
   useEffect(() => {
@@ -249,6 +263,7 @@ export default function App() {
   const current = state.players[currentId]
   const rates = ratesFor(state, currentId)
   const largestArmy = largestArmyHolder(state.players)
+  const longestRoad = longestRoadHolder(state.board, state.players)
   const winner = state.winner !== null ? state.players[state.winner] : null
   /** Offline hot-seat: the device always controls the active player. */
   const myTurn = seat === null || seat === currentId
@@ -259,6 +274,8 @@ export default function App() {
     : []
   const humanCanAnswerOffer = offerResponders.some((s) => !botSeats.includes(s))
   const viewed = seat === null ? current : state.players[seat]
+  /** Discard is owed by hand, not by turn — only the local human seat sees it. */
+  const myDiscardOwed = seat !== null ? state.discards[seat as PlayerId] : undefined
 
   function roll() {
     setRolling(true)
@@ -272,7 +289,12 @@ export default function App() {
     <div className="app" style={{ '--turn-color': current.color } as React.CSSProperties}>
       <header className="topbar">
         <h1 className="topbar__title">Catan</h1>
-        <PlayerStrip players={state.players} current={currentId} largestArmy={largestArmy} />
+        <PlayerStrip
+          players={state.players}
+          current={currentId}
+          largestArmy={largestArmy}
+          longestRoad={longestRoad}
+        />
         <button
           className="btn btn--ghost"
           onClick={() => {
@@ -290,12 +312,16 @@ export default function App() {
             <h2 className="modal__title">🏆 {winner.name} wins!</h2>
             <ul className="seats">
               {[...state.players]
-                .sort((a, b) => victoryPoints(b, largestArmy) - victoryPoints(a, largestArmy))
+                .sort(
+                  (a, b) =>
+                    victoryPoints(b, largestArmy, longestRoad) -
+                    victoryPoints(a, largestArmy, longestRoad),
+                )
                 .map((p) => (
                   <li key={p.id} className="seats__row">
                     {p.name}
                     <small>
-                      {victoryPoints(p, largestArmy)} VP · {p.cities.length} cities ·{' '}
+                      {victoryPoints(p, largestArmy, longestRoad)} VP · {p.cities.length} cities ·{' '}
                       {p.settlements.length} settlements · {p.knights} knights
                     </small>
                   </li>
@@ -312,6 +338,14 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {!!myDiscardOwed && (
+        <DiscardPicker
+          player={state.players[seat as number]}
+          owed={myDiscardOwed}
+          onDiscard={(cards) => dispatch({ type: 'discard', playerId: seat as PlayerId, cards })}
+        />
       )}
 
       {myTurn && state.picking === 'monopoly' && (

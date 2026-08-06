@@ -106,6 +106,25 @@ export function canAffordDev(player: Player): boolean {
   return Object.entries(DEV_COST).every(([res, n]) => player.hand[res as Resource] >= (n ?? 0))
 }
 
+export function handSize(player: Player): number {
+  return Object.values(player.hand).reduce((a, b) => a + b, 0)
+}
+
+/** Random legal bundle of `owed` cards from a hand, for forced/bot discards. */
+export function randomDiscard(player: Player, owed: number): Partial<Record<Resource, number>> {
+  const pool: Resource[] = []
+  for (const [res, n] of Object.entries(player.hand)) {
+    for (let i = 0; i < n; i++) pool.push(res as Resource)
+  }
+  const bundle: Partial<Record<Resource, number>> = {}
+  for (let i = 0; i < owed && pool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * pool.length)
+    const [card] = pool.splice(idx, 1)
+    bundle[card] = (bundle[card] ?? 0) + 1
+  }
+  return bundle
+}
+
 /**
  * Largest army: three or more knights and strictly more than anyone else.
  * Returns null while it is tied or unclaimed.
@@ -165,12 +184,17 @@ export function applyTrade(
   })
 }
 
-export function victoryPoints(player: Player, largestArmy: PlayerId | null = null): number {
+export function victoryPoints(
+  player: Player,
+  largestArmy: PlayerId | null = null,
+  longestRoad: PlayerId | null = null,
+): number {
   const cards = player.devCards.filter((c) => c.kind === 'victory').length
   return (
     player.settlements.length +
     player.cities.length * 2 +
     cards +
-    (largestArmy === player.id ? 2 : 0)
+    (largestArmy === player.id ? 2 : 0) +
+    (longestRoad === player.id ? 2 : 0)
   )
 }

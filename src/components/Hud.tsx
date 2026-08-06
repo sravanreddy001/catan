@@ -22,10 +22,12 @@ export function PlayerStrip({
   players,
   current,
   largestArmy,
+  longestRoad,
 }: {
   players: Player[]
   current: number
   largestArmy: PlayerId | null
+  longestRoad: PlayerId | null
 }) {
   return (
     <div className="strip">
@@ -38,7 +40,8 @@ export function PlayerStrip({
           <span className="chip__dot" />
           <span className="chip__name">{p.name}</span>
           {largestArmy === p.id && <span title="Largest army">⚔️</span>}
-          <span className="chip__vp">{victoryPoints(p, largestArmy)} VP</span>
+          {longestRoad === p.id && <span title="Longest road">🛣️</span>}
+          <span className="chip__vp">{victoryPoints(p, largestArmy, longestRoad)} VP</span>
         </div>
       ))}
     </div>
@@ -241,6 +244,47 @@ export function ResourcePicker({
 }
 
 type Bundle = Partial<Record<Resource, number>>
+
+/** Rolled a 7: the owner picks which `owed` cards to hand back to the bank. */
+export function DiscardPicker({
+  player,
+  owed,
+  onDiscard,
+}: {
+  player: Player
+  owed: number
+  onDiscard: (cards: Bundle) => void
+}) {
+  const [picks, setPicks] = useState<Bundle>({})
+  const total = Object.values(picks).reduce((sum, n) => sum + (n ?? 0), 0)
+
+  return (
+    <div className="modal">
+      <div className="modal__panel">
+        <h2 className="modal__title">Rolled a 7 — discard {owed}</h2>
+        <p className="lobby__hint">{player.name}, you're holding more than 7 cards.</p>
+        <div className="discard__grid">
+          {RESOURCES.map((r) => (
+            <Fragment key={r}>
+              <span className="offer__res">
+                {RESOURCE_ICON[r]}
+                <small>{player.hand[r]}</small>
+              </span>
+              <Stepper
+                value={picks[r] ?? 0}
+                max={player.hand[r]}
+                onChange={(n) => setPicks({ ...picks, [r]: n })}
+              />
+            </Fragment>
+          ))}
+        </div>
+        <button className="btn btn--primary" disabled={total !== owed} onClick={() => onDiscard(picks)}>
+          Discard {total}/{owed}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function bundleText(b: Bundle): string {
   const parts = Object.entries(b)

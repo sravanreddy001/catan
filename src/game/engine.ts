@@ -1,7 +1,14 @@
 // Pure game state + reducer. The host runs this and broadcasts the resulting
 // state; guests never execute it, so the randomness here stays authoritative.
 
-import { createBoard, tradeRates, vertexNeighbours, type Board, type Resource } from './board'
+import {
+  createBoard,
+  longestRoadLength,
+  tradeRates,
+  vertexNeighbours,
+  type Board,
+  type Resource,
+} from './board'
 import {
   COSTS,
   DEV_COST,
@@ -10,6 +17,8 @@ import {
   canAffordDev,
   createDevDeck,
   createPlayers,
+  handSize,
+  hasCards,
   largestArmyHolder,
   pay,
   victoryPoints,
@@ -51,6 +60,8 @@ export interface GameState {
   freeRoads: number
   picking: 'monopoly' | 'plenty' | null
   plentyLeft: number
+  /** Cards each over-7-card player still owes after a 7 is rolled. */
+  discards: Partial<Record<PlayerId, number>>
 }
 
 export type Action =
@@ -67,6 +78,7 @@ export type Action =
   | { type: 'propose'; offer: TradeOffer }
   | { type: 'acceptOffer'; responder: PlayerId }
   | { type: 'declineOffer' }
+  | { type: 'discard'; playerId: PlayerId; cards: Partial<Record<Resource, number>> }
   | { type: 'endTurn' }
 
 /** Snake order for the opening placements, e.g. 0,1,2,3,3,2,1,0. */
@@ -112,6 +124,7 @@ export function createGame(playerCount: number, names?: string[]): GameState {
     freeRoads: 0,
     picking: null,
     plentyLeft: 0,
+    discards: {},
   }
 }
 
@@ -130,11 +143,7 @@ function takenEdges(players: Player[]): Set<string> {
   return s
 }
 
-function handSize(p: Player): number {
-  return Object.values(p.hand).reduce((a, b) => a + b, 0)
-}
-
-/** Flatten a hand into one entry per card, for random steal/discard picks. */
+/** Flatten a hand into one entry per card, for a random steal pick. */
 function handCards(p: Player): Resource[] {
   const out: Resource[] = []
   for (const [res, n] of Object.entries(p.hand)) {
@@ -280,24 +289,31 @@ function produce(state: GameState, sum: number): GameState {
   return { ...state, players, bank, message: `Rolled ${sum} — ${summary}.` }
 }
 
-/** Standard rule: on a 7, anyone holding more than 7 cards loses half. */
-function discardHalf(
-  players: Player[],
-  bank: Record<Resource, number>,
-): { players: Player[]; bank: Record<Resource, number> } {
-  const nextBank = { ...bank }
-  const nextPlayers = players.map((p) => {
-    if (handSize(p) <= 7) return p
+/** Standard rule: on a 7, anyone holding more than 7 cards must discard half. */
+function owedDiscards(players: Player[]): Partial<Record<PlayerId, number>> {
+  const owed: Partial<Record<PlayerId, number>> = {}
+  for (const p of players) {
     const total = handSize(p)
-    const hand = { ...p.hand }
-    for (let i = 0; i < Math.floor(total / 2); i++) {
-      const card = pick(handCards({ ...p, hand }))
-      hand[card] -= 1
-      nextBank[card] += 1 // discards go back to the supply
+    if (total > 7) owed[p.id] = Math.floor(total / 2)
+  }
+  return owed
+}
+
+/** Longest continuous road, ties or under 5 segments leave nobody holding it. */
+export function longestRoadHolder(board: Board, players: Player[]): PlayerId | null {
+  const lengths = players.map((p) => {
+    const blocked = new Set<string>()
+    for (const other of players) {
+      if (other.id === p.id) continue
+      other.settlements.forEach((v) => blocked.add(v))
+      other.cities.forEach((v) => blocked.add(v))
     }
-    return { ...p, hand }
+    return { id: p.id, len: longestRoadLength(board, p.roads, blocked) }
   })
-  return { players: nextPlayers, bank: nextBank }
+  const best = Math.max(...lengths.map((l) => l.len))
+  if (best < 5) return null
+  const leaders = lengths.filter((l) => l.len === best)
+  return leaders.length === 1 ? leaders[0].id : null
 }
 
 /** Take one random card from a random opponent on the robbed tile. */
@@ -355,7 +371,8 @@ export function reduce(state: GameState, action: Action): GameState {
   const next = step(state, action)
   if (next === state) return state
   const largestArmy = largestArmyHolder(next.players)
-  const champion = next.players.find((p) => victoryPoints(p, largestArmy) >= 10)
+  const longestRoad = longestRoadHolder(next.board, next.players)
+  const champion = next.players.find((p) => victoryPoints(p, largestArmy, longestRoad) >= 10)
   return champion
     ? { ...next, winner: champion.id, message: `${champion.name} wins!` }
     : next
@@ -364,6 +381,9 @@ export function reduce(state: GameState, action: Action): GameState {
 function step(state: GameState, action: Action): GameState {
   const id = currentPlayerId(state)
   const current = state.players[id]
+
+  // A 7 forces every over-7-card hand to discard before anything else happens.
+  if (Object.keys(state.discards).length > 0 && action.type !== 'discard') return state
 
   switch (action.type) {
     case 'setMode': {
@@ -476,16 +496,43 @@ function step(state: GameState, action: Action): GameState {
       const b = 1 + Math.floor(Math.random() * 6)
       const rolled: GameState = { ...state, dice: [a, b], hasRolled: true, mode: null }
       if (a + b === 7) {
-        const discarded = discardHalf(rolled.players, rolled.bank)
+        const owed = owedDiscards(rolled.players)
+        const pending = Object.keys(owed).length > 0
         return {
           ...rolled,
-          players: discarded.players,
-          bank: discarded.bank,
-          mode: 'robber',
-          message: 'Rolled 7 — hands over 7 discarded half. Move the robber.',
+          discards: owed,
+          mode: pending ? null : 'robber',
+          message: pending
+            ? 'Rolled 7 — hands over 7 must discard half.'
+            : 'Rolled 7 — move the robber.',
         }
       }
       return produce(rolled, a + b)
+    }
+
+    case 'discard': {
+      const owed = state.discards[action.playerId]
+      if (!owed) return state
+      const total = Object.values(action.cards).reduce((sum, n) => sum + (n ?? 0), 0)
+      if (total !== owed) return state
+      const player = state.players.find((p) => p.id === action.playerId)!
+      if (!hasCards(player, action.cards)) return state
+      const discards = { ...state.discards }
+      delete discards[action.playerId]
+      const done = Object.keys(discards).length === 0
+      return {
+        ...state,
+        discards,
+        bank: refund(state.bank, action.cards),
+        players: state.players.map((p) => {
+          if (p.id !== action.playerId) return p
+          const hand = { ...p.hand }
+          for (const [res, n] of Object.entries(action.cards)) hand[res as Resource] -= n ?? 0
+          return { ...p, hand }
+        }),
+        mode: done ? 'robber' : state.mode,
+        message: done ? 'Discards resolved — move the robber.' : state.message,
+      }
     }
 
     case 'bankTrade': {

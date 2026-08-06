@@ -310,6 +310,13 @@ body {
   align-items: center;
 }
 
+.discard__grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+}
+
 .offer__head {
   font-size: 11px;
   color: var(--muted);
