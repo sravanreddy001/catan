@@ -420,6 +420,63 @@ body {
   color: #1a2330;
 }
 
+.field {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: center;
+}
+
+.lobby__divider {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lobby__count small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.seats__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 14px;
+}
+
+.seats__row small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.seats__row--empty {
+  border: 1px dashed var(--line);
+  background: none;
+  color: var(--muted);
+}
+
 .lobby__hint {
   margin: 14px 0 0;
   font-size: 12px;
@@ -446,11 +503,8 @@ body {
 
 .minicard {
   display: flex;
-  /* Icon sits on the top edge: that strip is what stays visible once the
-     cards overlap. */
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding-top: 2px;
   width: 100%;
   min-width: 30px;
   /* Card size scales up on wider screens; phones keep the dock short. */
@@ -690,7 +744,6 @@ body {
 
   .minicard {
     font-size: 17px;
-    padding-top: 3px;
     min-width: 44px;
   }
 

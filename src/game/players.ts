@@ -75,9 +75,9 @@ export function createPlayers(count = 4): Player[] {
     name: p.name,
     color: p.color,
     dark: p.dark,
-    // Starting hand so the build actions are usable while the rules engine
-    // (production on dice roll) is still to come.
-    hand: { brick: 4, lumber: 4, wool: 3, grain: 3, ore: 2 },
+    // Empty: the standard opening pays out from each player's second
+    // settlement, so nothing is dealt up front.
+    hand: { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 },
     settlements: [],
     cities: [],
     roads: [],
