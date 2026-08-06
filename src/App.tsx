@@ -4,6 +4,7 @@ import BoardView from './components/Board'
 import Lobby, { WaitingRoom } from './components/Lobby'
 import {
   ActionBar,
+  BuildGuide,
   Dice,
   DevBar,
   DiscardPicker,
@@ -50,6 +51,7 @@ export default function App() {
   const [seat, setSeat] = useState<number | null>(null)
   const [rolling, setRolling] = useState(false)
   const [composingOffer, setComposingOffer] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
   /** Seats played by the AI (offline only). */
   const [botSeats, setBotSeats] = useState<number[]>([])
   /** Bumped after each bot move so a no-op action still re-triggers the loop. */
@@ -295,6 +297,9 @@ export default function App() {
           largestArmy={largestArmy}
           longestRoad={longestRoad}
         />
+        <button className="btn btn--ghost btn--icon-only" onClick={() => setShowGuide(true)} title="What things cost">
+          ?
+        </button>
         <button
           className="btn btn--ghost"
           onClick={() => {
@@ -305,6 +310,8 @@ export default function App() {
           New game
         </button>
       </header>
+
+      {showGuide && <BuildGuide onClose={() => setShowGuide(false)} />}
 
       {winner && (
         <div className="modal">
@@ -400,15 +407,15 @@ export default function App() {
         />
       </main>
 
-      <footer className="dock">
-        <div className="dock__row dock__row--status">
-          <span className="turnpill">
-            {myTurn && seat !== null ? 'Your turn' : `${current.name}'s turn`}
-          </span>
-          <span className="status">{winner ? `${winner.name} wins!` : state.message}</span>
-          {state.phase === 'play' && <Dice dice={state.dice} rolling={rolling} />}
-        </div>
+      <div className="turnbar">
+        <span className="turnpill">
+          {myTurn && seat !== null ? 'Your turn' : `${current.name}'s turn`}
+        </span>
+        <span className="status">{winner ? `${winner.name} wins!` : state.message}</span>
+        {state.phase === 'play' && <Dice dice={state.dice} rolling={rolling} />}
+      </div>
 
+      <footer className="dock">
         <HandBar player={viewed} rates={state.phase === 'play' ? rates : undefined} />
 
         {myTurn && state.phase === 'play' && state.hasRolled && state.mode !== 'robber' && (

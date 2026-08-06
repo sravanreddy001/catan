@@ -1,7 +1,10 @@
 import { Fragment, useState } from 'react'
 import type { Resource } from '../game/board'
 import {
+  BUILD_ICON,
+  BUILD_LABEL,
   COSTS,
+  DEV_COST,
   DEV_ICON,
   DEV_LABEL,
   RESOURCES,
@@ -157,6 +160,40 @@ function costLabel(kind: BuildKind): string {
   return Object.entries(COSTS[kind])
     .map(([res, n]) => RESOURCE_ICON[res as keyof typeof RESOURCE_ICON].repeat(n ?? 0))
     .join('')
+}
+
+const BUILD_KINDS: BuildKind[] = ['road', 'settlement', 'city']
+
+/** What each piece and a dev card costs — the icon-only build buttons need this spelled out somewhere. */
+export function BuildGuide({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="modal">
+      <div className="modal__panel">
+        <h2 className="modal__title">What things cost</h2>
+        <div className="guide">
+          {BUILD_KINDS.map((k) => (
+            <div key={k} className="guide__row">
+              <span className="guide__piece">{BUILD_ICON[k]}</span>
+              <span className="guide__name">{BUILD_LABEL[k]}</span>
+              <span className="guide__cost">{costLabel(k)}</span>
+            </div>
+          ))}
+          <div className="guide__row">
+            <span className="guide__piece">{DEV_ICON.knight}</span>
+            <span className="guide__name">Dev card</span>
+            <span className="guide__cost">
+              {Object.entries(DEV_COST)
+                .map(([res, n]) => RESOURCE_ICON[res as keyof typeof RESOURCE_ICON].repeat(n ?? 0))
+                .join('')}
+            </span>
+          </div>
+        </div>
+        <button className="btn" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </div>
+  )
 }
 
 interface DevBarProps {
@@ -466,9 +503,10 @@ export function ActionBar({
 }: ActionBarProps) {
   const kinds: BuildKind[] = ['road', 'settlement', 'city']
   return (
-    <div className="actions">
+    <div className={`actions${!hasRolled ? ' actions--roll' : ''}`}>
       {!hasRolled ? (
-        <button className="btn btn--primary" onClick={onRoll}>
+        <button className="btn btn--roll" onClick={onRoll}>
+          <span className="btn__roll-icon">🎲</span>
           Roll dice
         </button>
       ) : (
@@ -479,8 +517,9 @@ export function ActionBar({
               className={`btn${mode === k ? ' btn--on' : ''}`}
               disabled={!canAfford(player, k)}
               onClick={() => (mode === k ? onCancel() : onBuild(k))}
+              title={`${BUILD_LABEL[k]}: ${costLabel(k)}`}
             >
-              <span className="btn__label">{k}</span>
+              <span className="btn__piece">{BUILD_ICON[k]}</span>
               <span className="btn__cost">{costLabel(k)}</span>
             </button>
           ))}

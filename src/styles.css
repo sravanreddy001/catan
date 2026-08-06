@@ -69,12 +69,12 @@ body {
 .chip {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: 7px;
+  padding: 8px 14px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid transparent;
-  font-size: 13px;
+  font-size: 15px;
   white-space: nowrap;
 }
 
@@ -84,8 +84,8 @@ body {
 }
 
 .chip__dot {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--c);
 }
@@ -198,14 +198,19 @@ body {
   gap: 10px;
   /* Reserved height: rows come and go between turns (trade bar, dev bar, roll
      vs build buttons) and without this the board resizes on every change. */
-  min-height: 290px;
+  min-height: 250px;
   justify-content: flex-start;
 }
 
-.dock__row--status {
+/* Turn notification: its own strip sitting right above the dock, rather
+   than buried as the dock's first row. */
+.turnbar {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 8px 14px;
+  background: var(--panel-2);
+  border-top: 1px solid var(--line);
 }
 
 .turnpill {
@@ -685,6 +690,29 @@ body {
   font-weight: 700;
 }
 
+/* Roll dice: a compact pill rather than a full-width rectangle. */
+.actions--roll {
+  justify-content: center;
+}
+
+.btn--roll {
+  flex: 0 0 auto;
+  flex-direction: row;
+  min-height: 48px;
+  padding: 10px 30px;
+  border-radius: 999px;
+  background: #f3c969;
+  color: #1a2330;
+  border-color: transparent;
+  font-weight: 700;
+  font-size: 16px;
+  box-shadow: 0 4px 14px rgba(243, 201, 105, 0.25);
+}
+
+.btn__roll-icon {
+  font-size: 19px;
+}
+
 .btn--on {
   outline: 2px solid #ffd977;
   background: rgba(255, 217, 119, 0.2);
@@ -695,6 +723,47 @@ body {
   min-height: 34px;
   padding: 6px 12px;
   font-size: 13px;
+}
+
+.btn--icon-only {
+  width: 34px;
+  padding: 6px;
+  border-radius: 50%;
+  font-weight: 700;
+}
+
+/* Build buttons: piece icon instead of a text label. */
+.btn__piece {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.guide__piece {
+  font-size: 22px;
+  width: 30px;
+  text-align: center;
+}
+
+.guide__name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.guide__cost {
+  font-size: 15px;
+  letter-spacing: 1px;
 }
 
 /* ---------- narrow screens ---------- */
@@ -729,8 +798,13 @@ body {
     padding: 14px 24px;
   }
 
-  .dock__row--status {
-    flex: 0 0 300px;
+  .turnbar {
+    justify-content: center;
+    padding: 8px 24px;
+  }
+
+  .turnbar .status {
+    flex: 0 1 auto;
   }
 
   .hand {

@@ -62,6 +62,18 @@ export const COSTS = {
 
 export type BuildKind = keyof typeof COSTS
 
+export const BUILD_ICON: Record<BuildKind, string> = {
+  road: '🛣️',
+  settlement: '🏠',
+  city: '🏛️',
+}
+
+export const BUILD_LABEL: Record<BuildKind, string> = {
+  road: 'Road',
+  settlement: 'Settlement',
+  city: 'City',
+}
+
 const PALETTE: Array<{ name: string; color: string; dark: string }> = [
   { name: 'Red', color: '#e2483c', dark: '#8d1f17' },
   { name: 'Blue', color: '#3d7fd6', dark: '#1c4682' },
