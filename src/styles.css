@@ -128,7 +128,7 @@ body {
 }
 
 .tile__robber {
-  font-size: 34px;
+  font-size: 18px;
 }
 
 .port__ratio {
@@ -196,6 +196,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Reserved height: rows come and go between turns (trade bar, dev bar, roll
+     vs build buttons) and without this the board resizes on every change. */
+  min-height: 290px;
+  justify-content: flex-start;
 }
 
 .dock__row--status {
@@ -492,23 +496,23 @@ body {
 }
 
 /* Cards pile upwards, newest on top, overlapping by --overlap. */
+/* Fixed-height well: cards are absolutely positioned inside it, so a growing
+   hand never resizes the dock or shifts the board between turns. */
 .stack__cards {
-  --card-h: 26px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  position: relative;
   width: 100%;
-  min-height: var(--card-h);
+  height: 92px;
 }
 
 .minicard {
+  position: absolute;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
   min-width: 30px;
-  /* Card size scales up on wider screens; phones keep the dock short. */
-  height: var(--card-h);
+  height: 30px;
   border-radius: 6px;
   background: #f2ead9;
   border: 1px solid rgba(0, 0, 0, 0.35);
@@ -517,9 +521,6 @@ body {
   line-height: 1;
 }
 
-.minicard + .minicard {
-  margin-top: calc(var(--overlap) - var(--card-h));
-}
 
 .minicard--empty {
   background: rgba(255, 255, 255, 0.05);
@@ -738,16 +739,8 @@ body {
 /* Card sizing scales before the dock relayout: even a small laptop window has
    the vertical room a phone does not. */
 @media (min-width: 600px) {
-  .stack__cards {
-    --card-h: 38px;
-  }
-
   .minicard {
     font-size: 17px;
     min-width: 44px;
-  }
-
-  .minicard + .minicard {
-    margin-top: calc(var(--overlap) * 1.5 - var(--card-h));
   }
 }

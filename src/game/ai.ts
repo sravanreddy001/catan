@@ -112,6 +112,10 @@ function targetsFor(state: GameState, mode: 'settlement' | 'road'): string[] {
   return mode === 'road' ? [...edgeTargets(probe)] : [...vertexTargets(probe)]
 }
 
+function cityTargets(state: GameState): string[] {
+  return [...vertexTargets({ ...state, mode: 'city' })]
+}
+
 function tradeTowardsGoal(state: GameState, seat: number): Action | null {
   const me = state.players[seat]
   const rates = ratesFor(state, seat)
@@ -195,7 +199,11 @@ export function chooseAction(state: GameState, seat: number): Action | null {
   }
 
   // Cities first (2 VP and double production), then settlements, then roads.
-  if (canAfford(me, 'city') && me.settlements.length > 0) return { type: 'setMode', mode: 'city' }
+  // Each checks for a legal spot: without that the bot keeps selecting a build
+  // it cannot place and never finishes its turn.
+  if (canAfford(me, 'city') && cityTargets(state).length > 0) {
+    return { type: 'setMode', mode: 'city' }
+  }
   if (canAfford(me, 'settlement') && targetsFor(state, 'settlement').length > 0) {
     return { type: 'setMode', mode: 'settlement' }
   }

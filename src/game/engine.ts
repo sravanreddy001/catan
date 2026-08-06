@@ -3,13 +3,16 @@
 
 import { createBoard, tradeRates, vertexNeighbours, type Board, type Resource } from './board'
 import {
+  COSTS,
   DEV_COST,
   applyTrade,
   canAfford,
   canAffordDev,
   createDevDeck,
   createPlayers,
+  largestArmyHolder,
   pay,
+  victoryPoints,
   type BuildKind,
   type DevKind,
   type Player,
@@ -19,9 +22,18 @@ import {
 
 export type Mode = BuildKind | 'robber' | null
 
+/** Standard piece supply per player. */
+export const PIECE_LIMITS = { settlements: 5, cities: 4, roads: 15 }
+
+/** The bank holds 19 of each resource; production stops when it runs dry. */
+export const BANK_PER_RESOURCE = 19
+
 export interface GameState {
   board: Board
   players: Player[]
+  bank: Record<Resource, number>
+  /** Set once someone reaches 10 points; the game accepts no further moves. */
+  winner: number | null
   phase: 'setup' | 'play'
   setupIndex: number
   /** During setup a settlement must be followed by a road from that corner. */
@@ -77,6 +89,14 @@ export function createGame(playerCount: number, names?: string[]): GameState {
   return {
     board,
     players,
+    bank: {
+      brick: BANK_PER_RESOURCE,
+      lumber: BANK_PER_RESOURCE,
+      wool: BANK_PER_RESOURCE,
+      grain: BANK_PER_RESOURCE,
+      ore: BANK_PER_RESOURCE,
+    },
+    winner: null,
     phase: 'setup',
     setupIndex: 0,
     pendingRoadFrom: null,
@@ -143,6 +163,7 @@ export function vertexTargets(state: GameState): Set<string> {
   }
 
   if (mode === 'settlement') {
+    if (current.settlements.length >= PIECE_LIMITS.settlements) return targets
     const reachable = new Set<string>()
     for (const eid of current.roads) {
       const e = board.edges.find((x) => x.id === eid)!
@@ -151,6 +172,7 @@ export function vertexTargets(state: GameState): Set<string> {
     }
     reachable.forEach((v) => distanceOk(v) && targets.add(v))
   } else if (mode === 'city') {
+    if (current.cities.length >= PIECE_LIMITS.cities) return targets
     current.settlements.forEach((v) => targets.add(v))
   }
   return targets
@@ -171,6 +193,7 @@ export function edgeTargets(state: GameState): Set<string> {
   }
 
   if (mode !== 'road') return targets
+  if (current.roads.length >= PIECE_LIMITS.roads) return targets
   const mine = new Set<string>()
   for (const eid of current.roads) {
     const e = board.edges.find((x) => x.id === eid)!
@@ -215,6 +238,30 @@ function produce(state: GameState, sum: number): GameState {
     }
   }
 
+  // Bank limit: if the supply cannot cover everyone owed a resource, nobody
+  // gets it — unless exactly one player is owed, who takes what is left.
+  const bank = { ...state.bank }
+  for (const res of Object.keys(bank) as Resource[]) {
+    const claimants = Object.entries(gains).filter(([, g]) => g[res])
+    const demand = claimants.reduce((sum, [, g]) => sum + (g[res] ?? 0), 0)
+    if (demand === 0) continue
+    if (demand > bank[res]) {
+      if (claimants.length === 1) {
+        const [pid, g] = claimants[0]
+        g[res] = bank[res]
+        gains[Number(pid)] = g
+        bank[res] = 0
+      } else {
+        for (const [pid, g] of claimants) {
+          delete g[res]
+          gains[Number(pid)] = g
+        }
+      }
+    } else {
+      bank[res] -= demand
+    }
+  }
+
   const players = state.players.map((p) => {
     const gain = gains[p.id]
     if (!gain) return p
@@ -230,20 +277,27 @@ function produce(state: GameState, sum: number): GameState {
         .map(([res, n]) => `+${n} ${res}`)
         .join(', ')}`
     : `nothing for ${active.name}`
-  return { ...state, players, message: `Rolled ${sum} — ${summary}.` }
+  return { ...state, players, bank, message: `Rolled ${sum} — ${summary}.` }
 }
 
 /** Standard rule: on a 7, anyone holding more than 7 cards loses half. */
-function discardHalf(players: Player[]): Player[] {
-  return players.map((p) => {
+function discardHalf(
+  players: Player[],
+  bank: Record<Resource, number>,
+): { players: Player[]; bank: Record<Resource, number> } {
+  const nextBank = { ...bank }
+  const nextPlayers = players.map((p) => {
     if (handSize(p) <= 7) return p
     const total = handSize(p)
     const hand = { ...p.hand }
     for (let i = 0; i < Math.floor(total / 2); i++) {
-      hand[pick(handCards({ ...p, hand }))] -= 1
+      const card = pick(handCards({ ...p, hand }))
+      hand[card] -= 1
+      nextBank[card] += 1 // discards go back to the supply
     }
     return { ...p, hand }
   })
+  return { players: nextPlayers, bank: nextBank }
 }
 
 /** Take one random card from a random opponent on the robbed tile. */
@@ -285,13 +339,43 @@ function advanceSetup(state: GameState): GameState {
   }
 }
 
+/** Spent cards go back to the bank. */
+function refund(
+  bank: Record<Resource, number>,
+  cost: Partial<Record<Resource, number>>,
+): Record<Resource, number> {
+  const next = { ...bank }
+  for (const [res, n] of Object.entries(cost)) next[res as Resource] += n ?? 0
+  return next
+}
+
 export function reduce(state: GameState, action: Action): GameState {
+  // Once won, the board is frozen: no further moves count.
+  if (state.winner !== null) return state
+  const next = step(state, action)
+  if (next === state) return state
+  const largestArmy = largestArmyHolder(next.players)
+  const champion = next.players.find((p) => victoryPoints(p, largestArmy) >= 10)
+  return champion
+    ? { ...next, winner: champion.id, message: `${champion.name} wins!` }
+    : next
+}
+
+function step(state: GameState, action: Action): GameState {
   const id = currentPlayerId(state)
   const current = state.players[id]
 
   switch (action.type) {
     case 'setMode': {
-      if (action.mode && action.mode !== 'robber' && !canAfford(current, action.mode)) return state
+      if (action.mode && action.mode !== 'robber') {
+        if (!canAfford(current, action.mode)) return state
+        // Refuse a build mode with nowhere legal to build (piece cap reached or
+        // no reachable spot) — otherwise the UI, and a bot, can get stuck in it.
+        const probe: GameState = { ...state, mode: action.mode }
+        const available =
+          action.mode === 'road' ? edgeTargets(probe).size : vertexTargets(probe).size
+        if (available === 0) return state
+      }
       return {
         ...state,
         mode: action.mode,
@@ -309,9 +393,13 @@ export function reduce(state: GameState, action: Action): GameState {
               .map((tid) => state.board.tiles.find((t) => t.id === tid)!)
               .filter((t) => t.type !== 'desert')
               .map((t) => t.type as Resource)
+              .filter((res) => state.bank[res] > 0)
           : []
+        const openingBank = { ...state.bank }
+        starting.forEach((res) => (openingBank[res] -= 1))
         return {
           ...state,
+          bank: openingBank,
           players: withCurrent(state, (p) => {
             const hand = { ...p.hand }
             starting.forEach((res) => (hand[res] += 1))
@@ -328,6 +416,7 @@ export function reduce(state: GameState, action: Action): GameState {
             ...pay(p, 'settlement'),
             settlements: [...p.settlements, action.id],
           })),
+          bank: refund(state.bank, COSTS.settlement),
           mode: null,
           message: `${current.name} built a settlement.`,
         }
@@ -340,6 +429,7 @@ export function reduce(state: GameState, action: Action): GameState {
             settlements: p.settlements.filter((v) => v !== action.id),
             cities: [...p.cities, action.id],
           })),
+          bank: refund(state.bank, COSTS.city),
           mode: null,
           message: `${current.name} built a city.`,
         }
@@ -369,6 +459,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return {
         ...state,
         players: withCurrent(state, (p) => ({ ...pay(p, 'road'), roads: [...p.roads, action.id] })),
+        bank: refund(state.bank, COSTS.road),
         mode: null,
         message: `${current.name} built a road.`,
       }
@@ -385,9 +476,11 @@ export function reduce(state: GameState, action: Action): GameState {
       const b = 1 + Math.floor(Math.random() * 6)
       const rolled: GameState = { ...state, dice: [a, b], hasRolled: true, mode: null }
       if (a + b === 7) {
+        const discarded = discardHalf(rolled.players, rolled.bank)
         return {
           ...rolled,
-          players: discardHalf(rolled.players),
+          players: discarded.players,
+          bank: discarded.bank,
           mode: 'robber',
           message: 'Rolled 7 — hands over 7 discarded half. Move the robber.',
         }
@@ -398,8 +491,14 @@ export function reduce(state: GameState, action: Action): GameState {
     case 'bankTrade': {
       const rate = ratesFor(state, id)[action.give]
       if (current.hand[action.give] < rate || action.give === action.get) return state
+      if (state.bank[action.get] < 1) return state
       return {
         ...state,
+        bank: {
+          ...state.bank,
+          [action.give]: state.bank[action.give] + rate,
+          [action.get]: state.bank[action.get] - 1,
+        },
         players: withCurrent(state, (p) => ({
           ...p,
           hand: {
@@ -418,6 +517,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return {
         ...state,
         deck: rest,
+        bank: refund(state.bank, DEV_COST),
         players: withCurrent(state, (p) => {
           const hand = { ...p.hand }
           for (const [res, n] of Object.entries(DEV_COST)) hand[res as Resource] -= n ?? 0
@@ -486,9 +586,11 @@ export function reduce(state: GameState, action: Action): GameState {
 
     case 'plenty': {
       if (state.picking !== 'plenty') return state
+      if (state.bank[action.res] < 1) return state
       const left = state.plentyLeft - 1
       return {
         ...state,
+        bank: { ...state.bank, [action.res]: state.bank[action.res] - 1 },
         players: withCurrent(state, (p) => ({
           ...p,
           hand: { ...p.hand, [action.res]: p.hand[action.res] + 1 },

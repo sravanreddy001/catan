@@ -92,7 +92,7 @@ export default function App() {
 
   // Bot turns: one action per tick, paced so a human can follow what happened.
   useEffect(() => {
-    if (!state || botSeats.length === 0) return
+    if (!state || state.winner !== null || botSeats.length === 0) return
     const active = currentPlayerId(state)
     if (!botSeats.includes(active)) return
 
@@ -249,9 +249,15 @@ export default function App() {
   const current = state.players[currentId]
   const rates = ratesFor(state, currentId)
   const largestArmy = largestArmyHolder(state.players)
-  const winner = state.players.find((p) => victoryPoints(p, largestArmy) >= 10)
+  const winner = state.winner !== null ? state.players[state.winner] : null
   /** Offline hot-seat: the device always controls the active player. */
   const myTurn = seat === null || seat === currentId
+  const offerResponders = state.offer
+    ? state.players
+        .map((_, i) => i)
+        .filter((i) => (state.offer!.to === 'any' ? i !== state.offer!.from : i === state.offer!.to))
+    : []
+  const humanCanAnswerOffer = offerResponders.some((s) => !botSeats.includes(s))
   const viewed = seat === null ? current : state.players[seat]
 
   function roll() {
@@ -277,6 +283,36 @@ export default function App() {
           New game
         </button>
       </header>
+
+      {winner && (
+        <div className="modal">
+          <div className="modal__panel">
+            <h2 className="modal__title">🏆 {winner.name} wins!</h2>
+            <ul className="seats">
+              {[...state.players]
+                .sort((a, b) => victoryPoints(b, largestArmy) - victoryPoints(a, largestArmy))
+                .map((p) => (
+                  <li key={p.id} className="seats__row">
+                    {p.name}
+                    <small>
+                      {victoryPoints(p, largestArmy)} VP · {p.cities.length} cities ·{' '}
+                      {p.settlements.length} settlements · {p.knights} knights
+                    </small>
+                  </li>
+                ))}
+            </ul>
+            <button
+              className="btn btn--primary"
+              onClick={() => {
+                clearSaved()
+                leave()
+              }}
+            >
+              New game
+            </button>
+          </div>
+        </div>
+      )}
 
       {myTurn && state.picking === 'monopoly' && (
         <ResourcePicker
@@ -305,7 +341,9 @@ export default function App() {
         />
       )}
 
-      {state.offer && (
+      {/* Only prompt when a human can answer: if every responder is a bot the
+          effect above decides, and a popup would flash open and shut. */}
+      {state.offer && humanCanAnswerOffer && (
         <OfferResponse
           offer={state.offer}
           players={state.players}

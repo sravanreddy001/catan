@@ -55,6 +55,11 @@ export function Dice({ dice, rolling }: { dice: [number, number] | null; rolling
   )
 }
 
+/** Card geometry, kept in sync with .minicard / .stack__cards in styles.css. */
+const CARD_HEIGHT = 30
+const STACK_HEIGHT = 92
+const CARD_STEP = 12
+
 export function HandBar({
   player,
   rates,
@@ -67,16 +72,22 @@ export function HandBar({
     <div className="hand">
       {RESOURCES.map((r) => {
         const n = player.hand[r]
-        // Tighten the overlap as the pile grows so a big hand still fits.
-        const overlap = n > 8 ? 4 : n > 5 ? 7 : 11
+        // Cards are absolutely placed inside a fixed-height well and the
+        // overlap tightens as the pile grows, so the dock keeps the same
+        // height between turns however many cards a player holds.
+        const overlap = n > 1 ? Math.min(CARD_STEP, (STACK_HEIGHT - CARD_HEIGHT) / (n - 1)) : 0
         return (
           <div key={r} className="stack" title={`${n} ${r}`}>
-            <div className="stack__cards" style={{ '--overlap': `${overlap}px` } as React.CSSProperties}>
+            <div className="stack__cards">
               {n === 0 ? (
                 <span className="minicard minicard--empty">{RESOURCE_ICON[r]}</span>
               ) : (
                 Array.from({ length: n }, (_, i) => (
-                  <span key={i} className={`minicard minicard--${r}`}>
+                  <span
+                    key={i}
+                    className={`minicard minicard--${r}`}
+                    style={{ top: `${i * overlap}px` }}
+                  >
                     {RESOURCE_ICON[r]}
                   </span>
                 ))

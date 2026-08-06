@@ -111,15 +111,32 @@ export default function Board({
                   ))}
                 </g>
               )}
-              {robberTile === t.id && (
-                <text className="tile__robber" x={t.cx} y={t.cy + 4} textAnchor="middle">
-                  🕵️
-                </text>
-              )}
             </g>
           )
         })}
       </g>
+
+      {/* Robber: drawn on its own layer above the tiles so it is never buried
+          by a number token, and as a dark token so it reads as a piece. */}
+      {(() => {
+        const tile = board.tiles.find((t) => t.id === robberTile)
+        if (!tile) return null
+        return (
+          <g className="robber" pointerEvents="none">
+            <circle
+              cx={tile.cx - 22}
+              cy={tile.cy - 14}
+              r={15}
+              fill="#1a1a1f"
+              stroke="#f4ead6"
+              strokeWidth={2.5}
+            />
+            <text className="tile__robber" x={tile.cx - 22} y={tile.cy - 8} textAnchor="middle">
+              🕵️
+            </text>
+          </g>
+        )
+      })()}
 
       {/* Harbours: marker out at sea, with two lines back to the coastal corners. */}
       <g>
@@ -151,6 +168,18 @@ export default function Board({
           if (!owner && !target) return null
           return (
             <g key={e.id}>
+              {/* Dark casing under the colour so roads read against any tile. */}
+              {owner && (
+                <line
+                  x1={e.x1}
+                  y1={e.y1}
+                  x2={e.x2}
+                  y2={e.y2}
+                  stroke="#0c1a24"
+                  strokeWidth={17}
+                  strokeLinecap="round"
+                />
+              )}
               <line
                 className={owner ? 'road' : 'road road--target'}
                 x1={e.x1}
