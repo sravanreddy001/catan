@@ -62,40 +62,38 @@ export const COSTS = {
 
 export type BuildKind = keyof typeof COSTS
 
-export const BUILD_ICON: Record<BuildKind, string> = {
-  road: '🛣️',
-  settlement: '🏠',
-  city: '🏛️',
-}
-
 export const BUILD_LABEL: Record<BuildKind, string> = {
   road: 'Road',
   settlement: 'Settlement',
   city: 'City',
 }
 
-const PALETTE: Array<{ name: string; color: string; dark: string }> = [
+export const PALETTE: Array<{ name: string; color: string; dark: string }> = [
   { name: 'Red', color: '#e2483c', dark: '#8d1f17' },
   { name: 'Blue', color: '#3d7fd6', dark: '#1c4682' },
   { name: 'Orange', color: '#ef8b34', dark: '#96500f' },
   { name: 'White', color: '#f2ede4', dark: '#8d8578' },
 ]
 
-export function createPlayers(count = 4): Player[] {
-  return PALETTE.slice(0, count).map((p, i) => ({
-    id: i as PlayerId,
-    name: p.name,
-    color: p.color,
-    dark: p.dark,
-    // Empty: the standard opening pays out from each player's second
-    // settlement, so nothing is dealt up front.
-    hand: { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 },
-    settlements: [],
-    cities: [],
-    roads: [],
-    devCards: [],
-    knights: 0,
-  }))
+/** `colorIndices[i]` picks player i's swatch from PALETTE; defaults to palette order. */
+export function createPlayers(count = 4, colorIndices?: number[]): Player[] {
+  return Array.from({ length: count }, (_, i) => {
+    const swatch = PALETTE[colorIndices?.[i] ?? i]
+    return {
+      id: i as PlayerId,
+      name: swatch.name,
+      color: swatch.color,
+      dark: swatch.dark,
+      // Empty: the standard opening pays out from each player's second
+      // settlement, so nothing is dealt up front.
+      hand: { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 },
+      settlements: [],
+      cities: [],
+      roads: [],
+      devCards: [],
+      knights: 0,
+    }
+  })
 }
 
 /** Standard 25-card development deck, shuffled. */
@@ -168,6 +166,8 @@ export interface TradeOffer {
   to: PlayerId | 'any'
   give: Partial<Record<Resource, number>>
   want: Partial<Record<Resource, number>>
+  /** Who has already turned this down — for an 'any' offer, it stays open for the rest. */
+  declinedBy: PlayerId[]
 }
 
 export function hasCards(player: Player, cards: Partial<Record<Resource, number>>): boolean {

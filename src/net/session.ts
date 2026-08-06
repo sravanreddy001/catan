@@ -17,6 +17,8 @@ export interface Lobby {
   code: string
   /** Display names by seat; the host is always seat 0. */
   names: string[]
+  /** PALETTE index per seat, parallel to `names`. */
+  colors: number[]
   started: boolean
 }
 
@@ -32,7 +34,9 @@ export type HostMessage =
   | { type: 'lobby'; lobby: Lobby; seat: number }
   | { type: 'state'; state: GameState }
 
-export type GuestMessage = { type: 'join'; name: string } | { type: 'action'; action: Action }
+export type GuestMessage =
+  | { type: 'join'; name: string; color: number }
+  | { type: 'action'; action: Action }
 
 export function roomCode(): string {
   return Array.from(
@@ -92,12 +96,14 @@ export class HostSession {
   private peer: Peer
   private seats = new Map<number, DataConnection>()
   private names: string[]
+  private colors: number[]
   private started = false
   private handlers: HostHandlers
 
-  constructor(code: string, hostName: string, handlers: HostHandlers) {
+  constructor(code: string, hostName: string, hostColor: number, handlers: HostHandlers) {
     this.code = code
     this.names = [hostName]
+    this.colors = [hostColor]
     this.handlers = handlers
     this.peer = new Peer(peerIdFor(code))
 
@@ -113,7 +119,14 @@ export class HostSession {
   }
 
   private lobby(): Lobby {
-    return { code: this.code, names: [...this.names], started: this.started }
+    return { code: this.code, names: [...this.names], colors: [...this.colors], started: this.started }
+  }
+
+  /** A guest's preferred color if free, otherwise the first one nobody has taken. */
+  private resolveColor(preferred: number): number {
+    if (!this.colors.includes(preferred)) return preferred
+    for (let i = 0; i < 4; i++) if (!this.colors.includes(i)) return i
+    return preferred
   }
 
   private accept(conn: DataConnection) {
@@ -129,6 +142,7 @@ export class HostSession {
           }
           seat = this.names.length
           this.names.push(msg.name)
+          this.colors.push(this.resolveColor(msg.color))
         }
         this.seats.set(seat, conn)
         conn.send({ type: 'lobby', lobby: this.lobby(), seat } satisfies HostMessage)
@@ -163,6 +177,10 @@ export class HostSession {
     return [...this.names]
   }
 
+  get playerColors(): number[] {
+    return [...this.colors]
+  }
+
   destroy() {
     this.peer.destroy()
   }
@@ -179,7 +197,7 @@ export class GuestSession {
   private peer: Peer
   private conn?: DataConnection
 
-  constructor(code: string, name: string, handlers: GuestHandlers) {
+  constructor(code: string, name: string, color: number, handlers: GuestHandlers) {
     this.peer = new Peer()
 
     this.peer.on('error', (err) => {
@@ -193,7 +211,7 @@ export class GuestSession {
     this.peer.on('open', () => {
       const conn = this.peer.connect(peerIdFor(code), { reliable: true })
       this.conn = conn
-      conn.on('open', () => conn.send({ type: 'join', name } satisfies GuestMessage))
+      conn.on('open', () => conn.send({ type: 'join', name, color } satisfies GuestMessage))
       conn.on('data', (raw) => {
         const msg = raw as HostMessage
         if (msg.type === 'lobby') handlers.onLobby(msg.lobby, msg.seat)

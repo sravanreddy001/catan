@@ -1,7 +1,6 @@
 import { Fragment, useState } from 'react'
 import type { Resource } from '../game/board'
 import {
-  BUILD_ICON,
   BUILD_LABEL,
   COSTS,
   DEV_COST,
@@ -20,6 +19,39 @@ import {
   type PlayerId,
   type TradeOffer,
 } from '../game/players'
+
+/** Same silhouettes Board.tsx draws on the map, so a button reads as "this piece". */
+const SETTLEMENT_SHAPE = '-8,7 -8,-2 0,-10 8,-2 8,7'
+const CITY_SHAPE = '-13,8 -13,-1 -6,-8 1,-1 1,-5 7,-12 13,-5 13,8'
+
+function PieceIcon({
+  kind,
+  color = '#f3c969',
+  dark = '#8a6a1f',
+}: {
+  kind: BuildKind
+  color?: string
+  dark?: string
+}) {
+  if (kind === 'road') {
+    return (
+      <svg width="26" height="26" viewBox="-14 -14 28 28">
+        <line x1="-9" y1="7" x2="9" y2="-7" stroke={color} strokeWidth="6" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  return (
+    <svg width="26" height="26" viewBox="-14 -14 28 28">
+      <polygon
+        points={kind === 'city' ? CITY_SHAPE : SETTLEMENT_SHAPE}
+        fill={color}
+        stroke={dark}
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
 
 export function PlayerStrip({
   players,
@@ -51,20 +83,36 @@ export function PlayerStrip({
   )
 }
 
-export function Dice({ dice, rolling }: { dice: [number, number] | null; rolling: boolean }) {
+/** Row-major 3x3 pip positions lit for each face value. */
+const PIPS: Record<number, number[]> = {
+  1: [4],
+  2: [0, 8],
+  3: [0, 4, 8],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+}
+
+function DieFace({ value }: { value: number }) {
+  const lit = new Set(PIPS[value] ?? [])
   return (
-    <div className={`dice${rolling ? ' dice--rolling' : ''}`}>
-      <span className="die">{dice ? dice[0] : '?'}</span>
-      <span className="die">{dice ? dice[1] : '?'}</span>
-      <span className="dice__sum">{dice ? dice[0] + dice[1] : '–'}</span>
-    </div>
+    <span className="die">
+      {Array.from({ length: 9 }, (_, i) => (
+        <span key={i} className={`die__pip${lit.has(i) ? ' die__pip--on' : ''}`} />
+      ))}
+    </span>
   )
 }
 
-/** Card geometry, kept in sync with .minicard / .stack__cards in styles.css. */
-const CARD_HEIGHT = 30
-const STACK_HEIGHT = 92
-const CARD_STEP = 12
+export function Dice({ dice, rolling }: { dice: [number, number] | null; rolling: boolean }) {
+  if (!dice) return null
+  return (
+    <div className={`dice${rolling ? ' dice--rolling' : ''}`}>
+      <DieFace value={dice[0]} />
+      <DieFace value={dice[1]} />
+    </div>
+  )
+}
 
 export function HandBar({
   player,
@@ -78,26 +126,11 @@ export function HandBar({
     <div className="hand">
       {RESOURCES.map((r) => {
         const n = player.hand[r]
-        // Cards are absolutely placed inside a fixed-height well and the
-        // overlap tightens as the pile grows, so the dock keeps the same
-        // height between turns however many cards a player holds.
-        const overlap = n > 1 ? Math.min(CARD_STEP, (STACK_HEIGHT - CARD_HEIGHT) / (n - 1)) : 0
         return (
           <div key={r} className="stack" title={`${n} ${r}`}>
-            <div className="stack__cards">
-              {n === 0 ? (
-                <span className="minicard minicard--empty">{RESOURCE_ICON[r]}</span>
-              ) : (
-                Array.from({ length: n }, (_, i) => (
-                  <span
-                    key={i}
-                    className={`minicard minicard--${r}`}
-                    style={{ top: `${i * overlap}px` }}
-                  >
-                    {RESOURCE_ICON[r]}
-                  </span>
-                ))
-              )}
+            <div className={`minicard${n === 0 ? ' minicard--empty' : ''}`}>
+              {RESOURCE_ICON[r]}
+              {n > 0 && <span className="minicard__count">{n}</span>}
             </div>
             {rates && <span className="card__rate">{rates[r]}:1</span>}
           </div>
@@ -173,7 +206,9 @@ export function BuildGuide({ onClose }: { onClose: () => void }) {
         <div className="guide">
           {BUILD_KINDS.map((k) => (
             <div key={k} className="guide__row">
-              <span className="guide__piece">{BUILD_ICON[k]}</span>
+              <span className="guide__piece">
+                <PieceIcon kind={k} />
+              </span>
               <span className="guide__name">{BUILD_LABEL[k]}</span>
               <span className="guide__cost">{costLabel(k)}</span>
             </div>
@@ -375,7 +410,7 @@ export function OfferComposer({ player, players, onCancel, onPropose }: OfferCom
   return (
     <div className="modal">
       <div className="modal__panel">
-        <h2 className="modal__title">Offer a trade</h2>
+        <h2 className="modal__title">Propose a trade</h2>
 
         <div className="offer__grid">
           <span className="offer__head" />
@@ -423,7 +458,7 @@ export function OfferComposer({ player, players, onCancel, onPropose }: OfferCom
           <button
             className="btn btn--primary"
             disabled={!valid}
-            onClick={() => onPropose({ from: player.id, to, give, want })}
+            onClick={() => onPropose({ from: player.id, to, give, want, declinedBy: [] })}
           >
             Propose
           </button>
@@ -443,15 +478,17 @@ interface OfferResponseProps {
 /** Hot-seat: pass the device, the named player answers. */
 export function OfferResponse({ offer, players, onAccept, onDecline }: OfferResponseProps) {
   const proposer = players.find((p) => p.id === offer.from)!
-  const responders = players.filter((p) =>
-    offer.to === 'any' ? p.id !== offer.from : p.id === offer.to,
+  const responders = players.filter(
+    (p) =>
+      (offer.to === 'any' ? p.id !== offer.from : p.id === offer.to) &&
+      !offer.declinedBy.includes(p.id),
   )
 
   return (
     <div className="modal">
       <div className="modal__panel">
         <h2 className="modal__title">
-          {proposer.name} offers {bundleText(offer.give)} for {bundleText(offer.want)}
+          {proposer.name} wants to trade {bundleText(offer.give)} for {bundleText(offer.want)}
         </h2>
         <div className="offer__responders">
           {responders.map((p) => {
@@ -470,9 +507,40 @@ export function OfferResponse({ offer, players, onAccept, onDecline }: OfferResp
           })}
         </div>
         <button className="btn" onClick={onDecline}>
-          Decline / cancel
+          Decline
         </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Non-blocking: the proposer can see their offer is still out there and keep
+ * playing while it waits, instead of it vanishing the moment they hit Propose.
+ */
+export function PendingOffer({
+  offer,
+  players,
+  onCancel,
+}: {
+  offer: TradeOffer
+  players: Player[]
+  onCancel: () => void
+}) {
+  const waitingOn = players.filter(
+    (p) =>
+      (offer.to === 'any' ? p.id !== offer.from : p.id === offer.to) &&
+      !offer.declinedBy.includes(p.id),
+  )
+  return (
+    <div className="pending-offer">
+      <span className="pending-offer__text">
+        Offered {bundleText(offer.give)} for {bundleText(offer.want)} —{' '}
+        {waitingOn.map((p) => p.name).join(', ')} to answer
+      </span>
+      <button className="btn btn--ghost" onClick={onCancel}>
+        Cancel
+      </button>
     </div>
   )
 }
@@ -519,14 +587,12 @@ export function ActionBar({
               onClick={() => (mode === k ? onCancel() : onBuild(k))}
               title={`${BUILD_LABEL[k]}: ${costLabel(k)}`}
             >
-              <span className="btn__piece">{BUILD_ICON[k]}</span>
-              <span className="btn__cost">{costLabel(k)}</span>
+              <PieceIcon kind={k} color={player.color} dark={player.dark} />
             </button>
           ))}
           {canOffer && (
-            <button className="btn" onClick={onOffer} disabled={mode === 'robber'}>
-              <span className="btn__label">Offer</span>
-              <span className="btn__cost">to players</span>
+            <button className="btn btn--trade" onClick={onOffer} disabled={mode === 'robber'}>
+              Trade
             </button>
           )}
           <button className="btn btn--primary" onClick={onEndTurn} disabled={mode === 'robber'}>

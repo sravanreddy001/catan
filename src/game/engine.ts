@@ -62,6 +62,8 @@ export interface GameState {
   plentyLeft: number
   /** Cards each over-7-card player still owes after a 7 is rolled. */
   discards: Partial<Record<PlayerId, number>>
+  /** Random turn order, shuffled once at game start; `turn`/`setupIndex` index into this. */
+  order: PlayerId[]
 }
 
 export type Action =
@@ -77,27 +79,37 @@ export type Action =
   | { type: 'plenty'; res: Resource }
   | { type: 'propose'; offer: TradeOffer }
   | { type: 'acceptOffer'; responder: PlayerId }
-  | { type: 'declineOffer' }
+  | { type: 'declineOffer'; responder: PlayerId }
+  | { type: 'cancelOffer' }
   | { type: 'discard'; playerId: PlayerId; cards: Partial<Record<Resource, number>> }
   | { type: 'endTurn' }
 
-/** Snake order for the opening placements, e.g. 0,1,2,3,3,2,1,0. */
-export function setupOrder(count: number): number[] {
-  const forward = Array.from({ length: count }, (_, i) => i)
-  return [...forward, ...forward.slice().reverse()]
+/** Snake order for the opening placements, e.g. 1,3,0,2,2,0,3,1 for order [1,3,0,2]. */
+export function setupOrder(order: PlayerId[]): number[] {
+  return [...order, ...order.slice().reverse()]
 }
 
 export function currentPlayerId(state: GameState): number {
   return state.phase === 'setup'
-    ? setupOrder(state.players.length)[state.setupIndex]
-    : state.turn
+    ? setupOrder(state.order)[state.setupIndex]
+    : state.order[state.turn]
 }
 
-export function createGame(playerCount: number, names?: string[]): GameState {
+function shuffledOrder(count: number): PlayerId[] {
+  const order = Array.from({ length: count }, (_, i) => i as PlayerId)
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[order[i], order[j]] = [order[j], order[i]]
+  }
+  return order
+}
+
+export function createGame(playerCount: number, names?: string[], colors?: number[]): GameState {
   const board = createBoard()
-  const players = createPlayers(playerCount).map((p, i) =>
+  const players = createPlayers(playerCount, colors).map((p, i) =>
     names?.[i] ? { ...p, name: names[i] } : p,
   )
+  const order = shuffledOrder(playerCount)
   return {
     board,
     players,
@@ -117,7 +129,7 @@ export function createGame(playerCount: number, names?: string[]): GameState {
     dice: null,
     hasRolled: false,
     robberTile: board.tiles.find((t) => t.type === 'desert')?.id ?? board.tiles[0].id,
-    message: `${players[0].name}: place your first settlement.`,
+    message: `${players[order[0]].name}: place your first settlement.`,
     offer: null,
     deck: createDevDeck(),
     playedDev: false,
@@ -125,6 +137,7 @@ export function createGame(playerCount: number, names?: string[]): GameState {
     picking: null,
     plentyLeft: 0,
     discards: {},
+    order,
   }
 }
 
@@ -337,7 +350,7 @@ function stealFrom(state: GameState, tileId: string): GameState {
 }
 
 function advanceSetup(state: GameState): GameState {
-  const order = setupOrder(state.players.length)
+  const order = setupOrder(state.order)
   const next = state.setupIndex + 1
   if (next >= order.length) {
     return {
@@ -345,7 +358,7 @@ function advanceSetup(state: GameState): GameState {
       phase: 'play',
       turn: 0,
       setupIndex: next,
-      message: `Setup done — ${state.players[0].name} to roll.`,
+      message: `Setup done — ${state.players[state.order[0]].name} to roll.`,
     }
   }
   return {
@@ -668,18 +681,34 @@ function step(state: GameState, action: Action): GameState {
       }
     }
 
-    case 'declineOffer':
-      return { ...state, offer: null, message: 'Offer declined.' }
+    case 'declineOffer': {
+      if (!state.offer) return state
+      // A targeted offer dies the moment its one possible responder says no.
+      if (state.offer.to !== 'any') {
+        return { ...state, offer: null, message: 'Offer declined.' }
+      }
+      const decliners = [...new Set([...state.offer.declinedBy, action.responder])]
+      const others = state.players.filter((p) => p.id !== state.offer!.from).map((p) => p.id)
+      const allDeclined = others.every((id) => decliners.includes(id))
+      return allDeclined
+        ? { ...state, offer: null, message: 'Offer declined.' }
+        : { ...state, offer: { ...state.offer, declinedBy: decliners } }
+    }
+
+    case 'cancelOffer':
+      if (!state.offer) return state
+      return { ...state, offer: null, message: 'Offer cancelled.' }
 
     case 'endTurn': {
       if (state.phase !== 'play' || state.mode === 'robber' || state.picking) return state
       const next = (state.turn + 1) % state.players.length
+      const nextId = state.order[next]
       return {
         ...state,
         turn: next,
         // Cards bought earlier become playable when their owner's turn comes round.
         players: state.players.map((p) =>
-          p.id === next ? { ...p, devCards: p.devCards.map((c) => ({ ...c, ready: true })) } : p,
+          p.id === nextId ? { ...p, devCards: p.devCards.map((c) => ({ ...c, ready: true })) } : p,
         ),
         playedDev: false,
         freeRoads: 0,
@@ -688,7 +717,7 @@ function step(state: GameState, action: Action): GameState {
         dice: null,
         hasRolled: false,
         offer: null,
-        message: `${state.players[next].name} to roll.`,
+        message: `${state.players[nextId].name} to roll.`,
       }
     }
 

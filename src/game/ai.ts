@@ -257,5 +257,5 @@ export function respondToOffer(state: GameState, seat: number): 'accept' | 'decl
     (sum, [res, n]) => sum + (need[res as Resource] ? (n ?? 0) * 2 : (n ?? 0) * 0.75),
     0,
   )
-  return gain > loss ? 'accept' : 'decline'
+  return gain >= loss ? 'accept' : 'decline'
 }

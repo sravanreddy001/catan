@@ -5,12 +5,13 @@ import Lobby, { WaitingRoom } from './components/Lobby'
 import {
   ActionBar,
   BuildGuide,
-  Dice,
   DevBar,
+  Dice,
   DiscardPicker,
   HandBar,
   OfferComposer,
   OfferResponse,
+  PendingOffer,
   PlayerStrip,
   ResourcePicker,
   TradeBar,
@@ -27,7 +28,7 @@ import {
   type GameState,
 } from './game/engine'
 import { chooseAction, chooseDiscard, respondToOffer } from './game/ai'
-import { largestArmyHolder, victoryPoints, type BuildKind, type PlayerId } from './game/players'
+import { PALETTE, largestArmyHolder, victoryPoints, type BuildKind, type PlayerId } from './game/players'
 import {
   GuestSession,
   HostSession,
@@ -41,7 +42,7 @@ import {
 
 type Stage =
   | { kind: 'lobby' }
-  | { kind: 'waiting'; isHost: boolean; code: string; names: string[]; status: string }
+  | { kind: 'waiting'; isHost: boolean; code: string; names: string[]; colors: number[]; status: string }
   | { kind: 'playing' }
 
 export default function App() {
@@ -120,41 +121,52 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [state, botSeats, dispatch])
 
-  // A bot answers a trade offer pointed at it.
+  // A bot answers a trade offer pointed at it — one at a time, so an offer to
+  // 'any' survives a bot's rejection as long as another responder is pending.
   useEffect(() => {
     if (!state?.offer || botSeats.length === 0) return
     const offer = state.offer
-    const responders = botSeats.filter((s) =>
-      offer.to === 'any' ? s !== offer.from : s === offer.to,
+    const responders = botSeats.filter(
+      (s) =>
+        (offer.to === 'any' ? s !== offer.from : s === offer.to) &&
+        !offer.declinedBy.includes(s as PlayerId),
     )
     if (responders.length === 0) return
 
     const timer = window.setTimeout(() => {
       const taker = responders.find((s) => respondToOffer(state, s) === 'accept')
-      dispatch(taker !== undefined ? { type: 'acceptOffer', responder: taker as PlayerId } : { type: 'declineOffer' })
+      dispatch(
+        taker !== undefined
+          ? { type: 'acceptOffer', responder: taker as PlayerId }
+          : { type: 'declineOffer', responder: responders[0] as PlayerId },
+      )
     }, 900)
     return () => window.clearTimeout(timer)
   }, [state, botSeats, dispatch])
 
   /** Offline is you (seat 0) against AI opponents in the remaining seats. */
-  function startOffline(opponents: number) {
+  function startOffline(opponents: number, color: number) {
     const names = ['You', ...Array.from({ length: opponents }, (_, i) => `Bot ${i + 1}`)]
+    // Bots take the remaining palette colors, in order, skipping your pick.
+    const remaining = PALETTE.map((_, i) => i).filter((i) => i !== color)
+    const colors = [color, ...remaining.slice(0, opponents)]
     setSeat(0)
     setBotSeats(names.map((_, i) => i).filter((i) => i > 0))
-    setState(createGame(names.length, names))
+    setState(createGame(names.length, names, colors))
     setStage({ kind: 'playing' })
   }
 
-  function startHosting(name: string) {
+  function startHosting(name: string, color: number) {
     const code = roomCode()
     setSeat(0)
-    host.current = new HostSession(code, name, {
+    host.current = new HostSession(code, name, color, {
       onLobby: (lobby: LobbyInfo) =>
         setStage({
           kind: 'waiting',
           isHost: true,
           code,
           names: lobby.names,
+          colors: lobby.colors,
           status: `${lobby.names.length} of 4 seats filled.`,
         }),
       onAction: (action, fromSeat) =>
@@ -173,12 +185,13 @@ export default function App() {
       isHost: true,
       code,
       names: [name],
+      colors: [color],
       status: 'Share the code or link, then start when everyone is in.',
     })
   }
 
-  function startJoining(code: string, name: string) {
-    guest.current = new GuestSession(code, name, {
+  function startJoining(code: string, name: string, color: number) {
+    guest.current = new GuestSession(code, name, color, {
       onLobby: (lobby, mySeat) => {
         setSeat(mySeat)
         setStage({
@@ -186,6 +199,7 @@ export default function App() {
           isHost: false,
           code,
           names: lobby.names,
+          colors: lobby.colors,
           status: `Joined as ${name}.`,
         })
       },
@@ -195,12 +209,13 @@ export default function App() {
       },
       onError: (msg) => setStage((s) => (s.kind === 'waiting' ? { ...s, status: msg } : s)),
     })
-    setStage({ kind: 'waiting', isHost: false, code, names: [], status: 'Connecting…' })
+    setStage({ kind: 'waiting', isHost: false, code, names: [], colors: [], status: 'Connecting…' })
   }
 
   function hostStart() {
     const names = host.current?.playerNames ?? []
-    const game = createGame(names.length, names)
+    const colors = host.current?.playerColors ?? []
+    const game = createGame(names.length, names, colors)
     setState(game)
     host.current?.broadcastState(game)
     setStage({ kind: 'playing' })
@@ -251,6 +266,7 @@ export default function App() {
       <WaitingRoom
         code={stage.code}
         names={stage.names}
+        colors={stage.colors}
         isHost={stage.isHost}
         status={stage.status}
         onStart={hostStart}
@@ -272,9 +288,15 @@ export default function App() {
   const offerResponders = state.offer
     ? state.players
         .map((_, i) => i)
-        .filter((i) => (state.offer!.to === 'any' ? i !== state.offer!.from : i === state.offer!.to))
+        .filter(
+          (i) =>
+            (state.offer!.to === 'any' ? i !== state.offer!.from : i === state.offer!.to) &&
+            !state.offer!.declinedBy.includes(i as PlayerId),
+        )
     : []
   const humanCanAnswerOffer = offerResponders.some((s) => !botSeats.includes(s))
+  /** Which seat this device is answering (or proposing) as. */
+  const viewerSeat = (seat ?? currentId) as PlayerId
   const viewed = seat === null ? current : state.players[seat]
   /** Discard is owed by hand, not by turn — only the local human seat sees it. */
   const myDiscardOwed = seat !== null ? state.discards[seat as PlayerId] : undefined
@@ -384,27 +406,42 @@ export default function App() {
 
       {/* Only prompt when a human can answer: if every responder is a bot the
           effect above decides, and a popup would flash open and shut. */}
-      {state.offer && humanCanAnswerOffer && (
+      {state.offer && humanCanAnswerOffer && offerResponders.includes(viewerSeat) && (
         <OfferResponse
           offer={state.offer}
           players={state.players}
           onAccept={(responder) => dispatch({ type: 'acceptOffer', responder })}
-          onDecline={() => dispatch({ type: 'declineOffer' })}
+          onDecline={() => dispatch({ type: 'declineOffer', responder: viewerSeat })}
+        />
+      )}
+
+      {/* Stays up for the proposer until it's accepted, cancelled, or everyone's declined. */}
+      {state.offer && state.offer.from === viewerSeat && (
+        <PendingOffer
+          offer={state.offer}
+          players={state.players}
+          onCancel={() => dispatch({ type: 'cancelOffer' })}
         />
       )}
 
       <main className="stage">
-        <BoardView
-          board={state.board}
-          players={state.players}
-          robberTile={state.robberTile}
-          vertexTargets={myTurn ? vertexTargets : new Set()}
-          edgeTargets={myTurn ? edgeTargets : new Set()}
-          tileTargets={myTurn && state.mode === 'robber'}
-          onVertex={(id) => dispatch({ type: 'vertex', id })}
-          onEdge={(id) => dispatch({ type: 'edge', id })}
-          onTile={(id) => dispatch({ type: 'tile', id })}
-        />
+        <div className="board-frame">
+          <BoardView
+            board={state.board}
+            players={state.players}
+            robberTile={state.robberTile}
+            vertexTargets={myTurn ? vertexTargets : new Set()}
+            edgeTargets={myTurn ? edgeTargets : new Set()}
+            tileTargets={myTurn && state.mode === 'robber'}
+            rolledSum={state.dice ? state.dice[0] + state.dice[1] : null}
+            onVertex={(id) => dispatch({ type: 'vertex', id })}
+            onEdge={(id) => dispatch({ type: 'edge', id })}
+            onTile={(id) => dispatch({ type: 'tile', id })}
+          />
+          {state.phase === 'play' && state.hasRolled && (
+            <Dice dice={state.dice} rolling={rolling} />
+          )}
+        </div>
       </main>
 
       <div className="turnbar">
@@ -412,7 +449,6 @@ export default function App() {
           {myTurn && seat !== null ? 'Your turn' : `${current.name}'s turn`}
         </span>
         <span className="status">{winner ? `${winner.name} wins!` : state.message}</span>
-        {state.phase === 'play' && <Dice dice={state.dice} rolling={rolling} />}
       </div>
 
       <footer className="dock">

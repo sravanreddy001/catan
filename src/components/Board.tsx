@@ -28,6 +28,8 @@ interface Props {
   /** Edge ids the current action may target. */
   edgeTargets: Set<string>
   tileTargets: boolean
+  /** Sum of the last roll — tiles with this number stay lit until the next turn. */
+  rolledSum: number | null
   onVertex: (id: string) => void
   onEdge: (id: string) => void
   onTile: (id: string) => void
@@ -54,6 +56,7 @@ export default function Board({
   vertexTargets,
   edgeTargets,
   tileTargets,
+  rolledSum,
   onVertex,
   onEdge,
   onTile,
@@ -79,7 +82,9 @@ export default function Board({
           return (
             <g
               key={t.id}
-              className={`tile${tileTargets ? ' tile--target' : ''}`}
+              className={`tile${tileTargets ? ' tile--target' : ''}${
+                t.number === rolledSum ? ' tile--rolled' : ''
+              }`}
               onClick={tileTargets ? () => onTile(t.id) : undefined}
             >
               <polygon points={points} fill={TILE_FILL[t.type]} stroke="#0f2a3d" strokeWidth={2} />
