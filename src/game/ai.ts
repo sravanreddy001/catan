@@ -6,6 +6,7 @@ export type AIPreset = 'aggressive' | 'economic' | 'turtle' | null
 
 import type { Resource } from './board'
 import {
+  PIECE_LIMITS,
   currentPlayerId,
   edgeTargets,
   ratesFor,
@@ -183,14 +184,22 @@ function tradeTowardsGoal(state: GameState, seat: number, preset: AIPreset = nul
   const goal = me.settlements.length > 0 && me.cities.length < 4 ? 'city' : 'settlement'
   const need = missingFor(me, goal)
   const wanted = (Object.keys(need) as Resource[])[0]
-  if (!wanted) return null
+  // If the bank is dry on the wanted resource, no trade can ever succeed —
+  // without this the bot would keep proposing the same rejected trade forever.
+  if (!wanted || state.bank[wanted] < 1) return null
 
   // Only trade away a resource we are not short of and hold a surplus of.
-  // Threshold controls willingness to trade: lower = more willing.
-  const threshold = rates[ALL[0]!] * config.tradeThreshold
+  // Threshold controls willingness to trade: lower = more willing. Each
+  // resource has its own bank rate (a 2:1 port only discounts that resource),
+  // so the check must use that resource's own rate — using a single shared
+  // rate let the bot "afford" trades its actual port didn't cover, which
+  // the reducer then silently rejected forever (an infinite retry loop).
   for (const give of ALL) {
     if (give === wanted || need[give]) continue
-    if (me.hand[give] >= threshold + 1) return { type: 'bankTrade', give, get: wanted }
+    const threshold = rates[give] * config.tradeThreshold
+    if (me.hand[give] >= rates[give] && me.hand[give] >= threshold + 1) {
+      return { type: 'bankTrade', give, get: wanted }
+    }
   }
   return null
 }
@@ -212,22 +221,28 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
     return { type: 'monopoly', res: best(totals, (t) => t.n)!.res }
   }
 
+  // Both picks draw straight from the bank, so a resource the bank is dry on
+  // is never a valid choice — the reducer silently rejects it, and picking
+  // it again next call would loop forever.
+  const inStock = ALL.filter((res) => state.bank[res] >= 1)
+
   if (state.picking === 'plenty') {
     const need = { ...missingFor(me, 'settlement'), ...missingFor(me, 'city') }
-    return { type: 'plenty', res: (Object.keys(need) as Resource[])[0] ?? 'ore' }
+    const wanted = (Object.keys(need) as Resource[]).find((res) => inStock.includes(res))
+    return { type: 'plenty', res: wanted ?? inStock[0] ?? 'ore' }
   }
 
   if (state.picking === 'santaBonus') {
     // Pick the resource the bot has least of, preferring needed resources for current goal.
     const need = { ...missingFor(me, 'settlement'), ...missingFor(me, 'city') }
-    const needed = Object.keys(need) as Resource[]
+    const needed = (Object.keys(need) as Resource[]).filter((res) => inStock.includes(res))
     if (needed.length > 0) {
       const lacking = best(needed, (res) => -me.hand[res])
       if (lacking) return { type: 'santaBonus', res: lacking }
     }
-    // If no specific need, pick whichever resource we have least of.
-    const least = best(ALL, (res) => -me.hand[res])
-    return { type: 'santaBonus', res: least ?? 'ore' }
+    // If no specific need, pick whichever in-stock resource we have least of.
+    const least = best(inStock, (res) => -me.hand[res])
+    return { type: 'santaBonus', res: least ?? inStock[0] ?? 'ore' }
   }
 
   if (state.mode === 'robber') return { type: 'tile', id: robberTarget(state, seat, preset) }
@@ -296,7 +311,7 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
   }
 
   if (canAffordDev(me) && state.deck.length > 0 && handTotal(me) >= 4) return { type: 'buyDev' }
-  if (canAfford(me, 'road') && me.roads.length < 8 && targetsFor(state, 'road').length > 0) {
+  if (canAfford(me, 'road') && me.roads.length < PIECE_LIMITS.roads && targetsFor(state, 'road').length > 0) {
     return { type: 'setMode', mode: 'road' }
   }
 

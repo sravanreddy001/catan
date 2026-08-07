@@ -210,3 +210,40 @@ export function victoryPoints(
     (longestRoad === player.id ? 2 : 0)
   )
 }
+
+export interface ScoreBreakdown {
+  settlements: number
+  settlementPoints: number
+  cities: number
+  cityPoints: number
+  devCardPoints: number
+  largestArmy: boolean
+  longestRoad: boolean
+  total: number
+}
+
+/** Per-player point-by-point tally, for the end-game "how did we get here" view. */
+export function scoreBreakdown(
+  player: Player,
+  largestArmy: PlayerId | null = null,
+  longestRoad: PlayerId | null = null,
+): ScoreBreakdown {
+  const devCardPoints = player.devCards.filter((c) => c.kind === 'victory').length
+  const hasLargestArmy = largestArmy === player.id
+  const hasLongestRoad = longestRoad === player.id
+  return {
+    settlements: player.settlements.length,
+    settlementPoints: player.settlements.length,
+    cities: player.cities.length,
+    cityPoints: player.cities.length * 2,
+    devCardPoints,
+    largestArmy: hasLargestArmy,
+    longestRoad: hasLongestRoad,
+    total:
+      player.settlements.length +
+      player.cities.length * 2 +
+      devCardPoints +
+      (hasLargestArmy ? 2 : 0) +
+      (hasLongestRoad ? 2 : 0),
+  }
+}

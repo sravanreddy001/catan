@@ -31,7 +31,14 @@ import {
   type GameState,
 } from './game/engine'
 import { chooseAction, chooseDiscard, respondToOffer, type AIPreset } from './game/ai'
-import { PALETTE, largestArmyHolder, victoryPoints, type BuildKind, type PlayerId } from './game/players'
+import {
+  PALETTE,
+  largestArmyHolder,
+  scoreBreakdown,
+  victoryPoints,
+  type BuildKind,
+  type PlayerId,
+} from './game/players'
 import {
   GuestSession,
   HostSession,
@@ -56,6 +63,8 @@ export default function App() {
   const [rolling, setRolling] = useState(false)
   const [composingOffer, setComposingOffer] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
+  const [endView, setEndView] = useState<'scores' | 'map'>('scores')
+  const [showBreakdown, setShowBreakdown] = useState(false)
   /** AI preset assigned to each bot seat (offline only). Seat -> preset mapping. */
   const [botPresets, setBotPresets] = useState<Record<number, AIPreset>>({})
   /** Bumped after each bot move so a no-op action still re-triggers the loop. */
@@ -271,6 +280,8 @@ export default function App() {
     setState(null)
     setSeat(null)
     setBotPresets({})
+    setEndView('scores')
+    setShowBreakdown(false)
     setStage({ kind: 'lobby' })
   }
 
@@ -367,10 +378,18 @@ export default function App() {
 
       {showGuide && <BuildGuide onClose={() => setShowGuide(false)} />}
 
-      {winner && (
+      {winner && endView === 'scores' && (
         <div className="modal">
           <div className="modal__panel">
             <h2 className="modal__title">🏆 {winner.name} wins!</h2>
+            <div className="modal__tabs">
+              <button className="btn btn--ghost btn--on" disabled>
+                Scores
+              </button>
+              <button className="btn btn--ghost" onClick={() => setEndView('map')}>
+                View final board
+              </button>
+            </div>
             <ul className="seats">
               {[...state.players]
                 .sort(
@@ -378,16 +397,40 @@ export default function App() {
                     victoryPoints(b, largestArmy, longestRoad) -
                     victoryPoints(a, largestArmy, longestRoad),
                 )
-                .map((p) => (
-                  <li key={p.id} className="seats__row">
-                    {p.name}
-                    <small>
-                      {victoryPoints(p, largestArmy, longestRoad)} VP · {p.cities.length} cities ·{' '}
-                      {p.settlements.length} settlements · {p.knights} knights
-                    </small>
-                  </li>
-                ))}
+                .map((p) => {
+                  const breakdown = scoreBreakdown(p, largestArmy, longestRoad)
+                  return (
+                    <li key={p.id} className="seats__row">
+                      <div className="seats__row-main">
+                        {p.name}
+                        <small>
+                          {breakdown.total} VP · {p.cities.length} cities · {p.settlements.length}{' '}
+                          settlements · {p.knights} knights
+                        </small>
+                      </div>
+                      {showBreakdown && (
+                        <ul className="seats__breakdown">
+                          <li>
+                            Settlements: {breakdown.settlements} × 1 = {breakdown.settlementPoints}
+                          </li>
+                          <li>
+                            Cities: {breakdown.cities} × 2 = {breakdown.cityPoints}
+                          </li>
+                          {breakdown.devCardPoints > 0 && (
+                            <li>Victory point cards: {breakdown.devCardPoints}</li>
+                          )}
+                          {breakdown.largestArmy && <li>Largest army: 2</li>}
+                          {breakdown.longestRoad && <li>Longest road: 2</li>}
+                          <li className="seats__breakdown-total">Total: {breakdown.total}</li>
+                        </ul>
+                      )}
+                    </li>
+                  )
+                })}
             </ul>
+            <button className="btn btn--ghost" onClick={() => setShowBreakdown((v) => !v)}>
+              {showBreakdown ? 'Hide' : 'Show'} how scores add up
+            </button>
             <button
               className="btn btn--primary"
               onClick={() => {
@@ -398,6 +441,15 @@ export default function App() {
               New game
             </button>
           </div>
+        </div>
+      )}
+
+      {winner && endView === 'map' && (
+        <div className="end-map-bar">
+          <span className="end-map-bar__label">🏆 {winner.name} wins! — final board</span>
+          <button className="btn btn--primary" onClick={() => setEndView('scores')}>
+            Back to scores
+          </button>
         </div>
       )}
 

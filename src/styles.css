@@ -338,6 +338,37 @@ body {
   gap: 10px;
 }
 
+.modal__tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.modal__tabs .btn {
+  flex: 1;
+}
+
+.end-map-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(6, 20, 32, 0.9);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(3px);
+}
+
+.end-map-bar__label {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .trade-head {
   display: flex;
   align-items: center;
@@ -706,17 +737,40 @@ body {
 
 .seats__row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
   padding: 9px 12px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.07);
   font-size: 14px;
 }
 
+.seats__row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .seats__row small {
   color: var(--muted);
   font-size: 11px;
+}
+
+.seats__breakdown {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.seats__breakdown-total {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .seats__row--empty {
