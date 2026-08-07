@@ -162,6 +162,19 @@ export function chooseAction(state: GameState, seat: number): Action | null {
     return { type: 'plenty', res: (Object.keys(need) as Resource[])[0] ?? 'ore' }
   }
 
+  if (state.picking === 'santaBonus') {
+    // Pick the resource the bot has least of, preferring needed resources for current goal.
+    const need = { ...missingFor(me, 'settlement'), ...missingFor(me, 'city') }
+    const needed = Object.keys(need) as Resource[]
+    if (needed.length > 0) {
+      const lacking = best(needed, (res) => -me.hand[res])
+      if (lacking) return { type: 'santaBonus', res: lacking }
+    }
+    // If no specific need, pick whichever resource we have least of.
+    const least = best(ALL, (res) => -me.hand[res])
+    return { type: 'santaBonus', res: least ?? 'ore' }
+  }
+
   if (state.mode === 'robber') return { type: 'tile', id: robberTarget(state, seat) }
 
   // --- opening placements -------------------------------------------------

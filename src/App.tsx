@@ -176,7 +176,7 @@ export default function App() {
           names: lobby.names,
           colors: lobby.colors,
           status: `${lobby.names.length} of 4 seats filled.`,
-          settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard' },
+          settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard', santaMode: false },
         })),
       onAction: (action, fromSeat) =>
         setState((prev) => {
@@ -196,7 +196,7 @@ export default function App() {
       names: [name],
       colors: [color],
       status: 'Share the code or link, then start when everyone is in.',
-      settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard' },
+      settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard', santaMode: false },
     })
   }
 
@@ -211,7 +211,7 @@ export default function App() {
           names: lobby.names,
           colors: lobby.colors,
           status: `Joined as ${name}.`,
-          settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard' },
+          settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard', santaMode: false },
         })
       },
       onState: (s) => {
@@ -220,7 +220,7 @@ export default function App() {
       },
       onError: (msg) => setStage((s) => (s.kind === 'waiting' ? { ...s, status: msg } : s)),
     })
-    setStage({ kind: 'waiting', isHost: false, code, names: [], colors: [], status: 'Connecting…', settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard' } })
+    setStage({ kind: 'waiting', isHost: false, code, names: [], colors: [], status: 'Connecting…', settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard', santaMode: false } })
   }
 
   function hostStart(settings?: Partial<GameSettings>) {
@@ -406,6 +406,14 @@ export default function App() {
         />
       )}
 
+      {myTurn && state.picking === 'santaBonus' && (
+        <ResourcePicker
+          title="Pick a free resource"
+          hint="Choose one resource to take from the bank."
+          onPick={(res) => dispatch({ type: 'santaBonus', res })}
+        />
+      )}
+
       {myTurn && (
         <OfferComposer
           player={current}
@@ -454,6 +462,7 @@ export default function App() {
             edgeTargets={myTurn ? edgeTargets : new Set()}
             tileTargets={myTurn && state.mode === 'robber'}
             rolledSum={state.dice ? state.dice[0] + state.dice[1] : null}
+            santaMode={state.settings.santaMode}
             onVertex={(id) => dispatch({ type: 'vertex', id })}
             onEdge={(id) => dispatch({ type: 'edge', id })}
             onTile={(id) => dispatch({ type: 'tile', id })}

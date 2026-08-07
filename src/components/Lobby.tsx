@@ -57,6 +57,7 @@ export default function Lobby({
   const [vpTarget, setVpTarget] = useState(10)
   const [publicHands, setPublicHands] = useState(false)
   const [bankPreset, setBankPreset] = useState<'standard' | 'scarce' | 'veryScarce'>('standard')
+  const [santaMode, setSantaMode] = useState(false)
 
   return (
     <div className="modal">
@@ -122,6 +123,15 @@ export default function Lobby({
                 Public hands (see all players' cards)
               </label>
 
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+                <input
+                  type="checkbox"
+                  checked={santaMode}
+                  onChange={(e) => setSantaMode(e.target.checked)}
+                />
+                Santa mode (friendly variant, no robber)
+              </label>
+
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
                 <span>VP target:</span>
                 <select
@@ -156,7 +166,7 @@ export default function Lobby({
               )}
             </div>
 
-            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget, bankPreset })}>
+            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget, bankPreset, santaMode })}>
               Start
             </button>
             <button className="btn" onClick={() => setScreen('offline')}>
@@ -251,6 +261,7 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
   const [vpTarget, setVpTarget] = useState(settings.vpTarget)
   const [publicHands, setPublicHands] = useState(settings.publicHands)
   const [bankPreset, setBankPreset] = useState(settings.bankPreset)
+  const [santaMode, setSantaMode] = useState(settings.santaMode)
 
   async function copy(what: 'code' | 'link') {
     try {
@@ -305,6 +316,15 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
             </label>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+              <input
+                type="checkbox"
+                checked={santaMode}
+                onChange={(e) => setSantaMode(e.target.checked)}
+              />
+              Santa mode (friendly variant, no robber)
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
               <span>VP target:</span>
               <select
                 value={vpTarget}
@@ -340,7 +360,7 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
         )}
 
         {isHost ? (
-          <button className="btn btn--primary" disabled={names.length < 2} onClick={() => onStart({ publicHands, vpTarget, bankPreset })}>
+          <button className="btn btn--primary" disabled={names.length < 2} onClick={() => onStart({ publicHands, vpTarget, bankPreset, santaMode })}>
             {names.length < 2 ? 'Waiting for players…' : `Start with ${names.length}`}
           </button>
         ) : (

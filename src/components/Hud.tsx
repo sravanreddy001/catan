@@ -105,7 +105,7 @@ export function PlayerStrip({
 /** Settings indicator chip showing active non-default settings. */
 export function SettingsChip({ settings }: { settings: GameSettings }) {
   const [expanded, setExpanded] = useState(false)
-  const hasNonDefault = settings.publicHands || settings.vpTarget !== 10 || settings.bankPreset !== 'standard'
+  const hasNonDefault = settings.publicHands || settings.vpTarget !== 10 || settings.bankPreset !== 'standard' || settings.santaMode
 
   if (!hasNonDefault) return null
 
@@ -127,6 +127,7 @@ export function SettingsChip({ settings }: { settings: GameSettings }) {
         {settings.publicHands && <span title="Public hands mode">👁️</span>}
         {settings.vpTarget !== 10 && <span title={`VP target: ${settings.vpTarget}`}>🎯</span>}
         {settings.bankPreset !== 'standard' && <span title={`Bank: ${bankPresetLabel[settings.bankPreset]}`}>🏦</span>}
+        {settings.santaMode && <span title="Santa mode">🎅</span>}
       </button>
 
       {expanded && (
@@ -137,6 +138,7 @@ export function SettingsChip({ settings }: { settings: GameSettings }) {
               {settings.publicHands && <div>✓ Public hands: all players' cards visible</div>}
               <div>✓ VP target: {settings.vpTarget} points to win</div>
               {settings.bankPreset !== 'standard' && <div>✓ Bank preset: {bankPresetLabel[settings.bankPreset]}</div>}
+              {settings.santaMode && <div>✓ Santa mode: friendly variant (no robber)</div>}
             </div>
             <button className="btn" onClick={() => setExpanded(false)}>
               Close

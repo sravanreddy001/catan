@@ -41,6 +41,8 @@ export interface GameSettings {
   vpTarget: number
   /** Bank resource supply preset: standard (19), scarce (12), or veryScarce (9). */
   bankPreset: 'standard' | 'scarce' | 'veryScarce'
+  /** Santa mode: rolling a 7 or playing a Knight grants a free resource instead of placing a robber. */
+  santaMode: boolean
 }
 
 export function defaultSettings(): GameSettings {
@@ -48,6 +50,7 @@ export function defaultSettings(): GameSettings {
     publicHands: false,
     vpTarget: 10,
     bankPreset: 'standard',
+    santaMode: false,
   }
 }
 
@@ -88,7 +91,7 @@ export interface GameState {
   playedDev: boolean
   /** Free roads owed by a road-building card. */
   freeRoads: number
-  picking: 'monopoly' | 'plenty' | null
+  picking: 'monopoly' | 'plenty' | 'santaBonus' | null
   plentyLeft: number
   /** Cards each over-7-card player still owes after a 7 is rolled. */
   discards: Partial<Record<PlayerId, number>>
@@ -108,6 +111,7 @@ export type Action =
   | { type: 'playDev'; cardId: string }
   | { type: 'monopoly'; res: Resource }
   | { type: 'plenty'; res: Resource }
+  | { type: 'santaBonus'; res: Resource }
   | { type: 'propose'; offer: TradeOffer }
   | { type: 'acceptOffer'; responder: PlayerId }
   | { type: 'declineOffer'; responder: PlayerId }
@@ -545,6 +549,16 @@ function step(state: GameState, action: Action): GameState {
       if (a + b === 7) {
         const owed = owedDiscards(rolled.players)
         const pending = Object.keys(owed).length > 0
+        if (state.settings.santaMode) {
+          return {
+            ...rolled,
+            discards: owed,
+            picking: pending ? null : 'santaBonus',
+            message: pending
+              ? 'Rolled 7 — hands over 7 must discard half.'
+              : 'Rolled 7 — pick a free resource.',
+          }
+        }
         return {
           ...rolled,
           discards: owed,
@@ -577,8 +591,13 @@ function step(state: GameState, action: Action): GameState {
           for (const [res, n] of Object.entries(action.cards)) hand[res as Resource] -= n ?? 0
           return { ...p, hand }
         }),
-        mode: done ? 'robber' : state.mode,
-        message: done ? 'Discards resolved — move the robber.' : state.message,
+        mode: done && !state.settings.santaMode ? 'robber' : state.mode,
+        picking: done && state.settings.santaMode ? 'santaBonus' : state.picking,
+        message: done
+          ? state.settings.santaMode
+            ? 'Discards resolved — pick a free resource.'
+            : 'Discards resolved — move the robber.'
+          : state.message,
       }
     }
 
@@ -642,6 +661,9 @@ function step(state: GameState, action: Action): GameState {
       }
       switch (card.kind) {
         case 'knight':
+          if (state.settings.santaMode) {
+            return { ...base, picking: 'santaBonus', message: 'Knight played — pick a free resource.' }
+          }
           return { ...base, mode: 'robber', message: 'Knight played — move the robber.' }
         case 'roadBuilding':
           return {
@@ -692,6 +714,21 @@ function step(state: GameState, action: Action): GameState {
         plentyLeft: left,
         picking: left === 0 ? null : 'plenty',
         message: left === 0 ? 'Year of plenty resolved.' : state.message,
+      }
+    }
+
+    case 'santaBonus': {
+      if (state.picking !== 'santaBonus') return state
+      if (state.bank[action.res] < 1) return state
+      return {
+        ...state,
+        bank: { ...state.bank, [action.res]: state.bank[action.res] - 1 },
+        players: withCurrent(state, (p) => ({
+          ...p,
+          hand: { ...p.hand, [action.res]: p.hand[action.res] + 1 },
+        })),
+        picking: null,
+        message: `Got +1 ${action.res} from Santa.`,
       }
     }
 

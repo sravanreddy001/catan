@@ -30,6 +30,8 @@ interface Props {
   tileTargets: boolean
   /** Sum of the last roll — tiles with this number stay lit until the next turn. */
   rolledSum: number | null
+  /** Santa mode: no robber piece is drawn. */
+  santaMode: boolean
   onVertex: (id: string) => void
   onEdge: (id: string) => void
   onTile: (id: string) => void
@@ -57,6 +59,7 @@ export default function Board({
   edgeTargets,
   tileTargets,
   rolledSum,
+  santaMode,
   onVertex,
   onEdge,
   onTile,
@@ -89,7 +92,7 @@ export default function Board({
             >
               <polygon points={points} fill={TILE_FILL[t.type]} stroke="#0f2a3d" strokeWidth={2} />
               <text className="tile__icon" x={t.cx} y={t.cy - 20} textAnchor="middle">
-                {TILE_ICON[t.type]}
+                {santaMode && t.type === 'desert' ? '🏔️' : TILE_ICON[t.type]}
               </text>
               {t.number !== undefined && (
                 <g>
@@ -122,8 +125,9 @@ export default function Board({
       </g>
 
       {/* Robber: drawn on its own layer above the tiles so it is never buried
-          by a number token, and as a dark token so it reads as a piece. */}
-      {(() => {
+          by a number token, and as a dark token so it reads as a piece.
+          Not rendered in Santa mode. */}
+      {!santaMode && (() => {
         const tile = board.tiles.find((t) => t.id === robberTile)
         if (!tile) return null
         return (
