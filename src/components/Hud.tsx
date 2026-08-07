@@ -21,6 +21,22 @@ import {
   type TradeOffer,
 } from '../game/players'
 
+/** Display bank resource supply. */
+export function BankSupply({ bank }: { bank: Record<Resource, number> }) {
+  return (
+    <div className="hand" style={{ opacity: 0.7, fontSize: '0.85rem' }}>
+      {RESOURCES.map((r) => (
+        <div key={r} className="stack" title={`Bank has ${bank[r]} ${r}`}>
+          <div className="minicard">
+            {RESOURCE_ICON[r]}
+            <span className="minicard__count">{bank[r]}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** Same silhouettes Board.tsx draws on the map, so a button reads as "this piece". */
 const SETTLEMENT_SHAPE = '-8,7 -8,-2 0,-10 8,-2 8,7'
 const CITY_SHAPE = '-13,8 -13,-1 -6,-8 1,-1 1,-5 7,-12 13,-5 13,8'
@@ -89,9 +105,15 @@ export function PlayerStrip({
 /** Settings indicator chip showing active non-default settings. */
 export function SettingsChip({ settings }: { settings: GameSettings }) {
   const [expanded, setExpanded] = useState(false)
-  const hasNonDefault = settings.publicHands || settings.vpTarget !== 10
+  const hasNonDefault = settings.publicHands || settings.vpTarget !== 10 || settings.bankPreset !== 'standard'
 
   if (!hasNonDefault) return null
+
+  const bankPresetLabel = {
+    standard: 'Standard (19)',
+    scarce: 'Scarce (12)',
+    veryScarce: 'Very Scarce (9)',
+  }
 
   return (
     <>
@@ -104,6 +126,7 @@ export function SettingsChip({ settings }: { settings: GameSettings }) {
         <span>⚙️</span>
         {settings.publicHands && <span title="Public hands mode">👁️</span>}
         {settings.vpTarget !== 10 && <span title={`VP target: ${settings.vpTarget}`}>🎯</span>}
+        {settings.bankPreset !== 'standard' && <span title={`Bank: ${bankPresetLabel[settings.bankPreset]}`}>🏦</span>}
       </button>
 
       {expanded && (
@@ -113,6 +136,7 @@ export function SettingsChip({ settings }: { settings: GameSettings }) {
             <div style={{ fontSize: '0.9rem', lineHeight: '1.8' }}>
               {settings.publicHands && <div>✓ Public hands: all players' cards visible</div>}
               <div>✓ VP target: {settings.vpTarget} points to win</div>
+              {settings.bankPreset !== 'standard' && <div>✓ Bank preset: {bankPresetLabel[settings.bankPreset]}</div>}
             </div>
             <button className="btn" onClick={() => setExpanded(false)}>
               Close

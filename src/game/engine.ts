@@ -34,21 +34,37 @@ export type Mode = BuildKind | 'robber' | null
 /** Standard piece supply per player. */
 export const PIECE_LIMITS = { settlements: 5, cities: 4, roads: 15 }
 
-/** The bank holds 19 of each resource; production stops when it runs dry. */
-export const BANK_PER_RESOURCE = 19
-
 export interface GameSettings {
   /** Show every player's hand instead of hiding opponents' cards. */
   publicHands: boolean
   /** Victory points needed to win. */
   vpTarget: number
+  /** Bank resource supply preset: standard (19), scarce (12), or veryScarce (9). */
+  bankPreset: 'standard' | 'scarce' | 'veryScarce'
 }
 
 export function defaultSettings(): GameSettings {
   return {
     publicHands: false,
     vpTarget: 10,
+    bankPreset: 'standard',
   }
+}
+
+/**
+ * Map bank preset to resources per type.
+ * scripts/bank-simulation.ts models trade frequency at several bank sizes; its
+ * ratio-based metric flags every candidate as "exponential" because trade
+ * counts near-standard (19) are close to zero, so any increase reads as a huge
+ * multiplier — not a reliable signal on its own. These values keep the PRD's
+ * original 19/12/9 proposal rather than the script's 19/10/6 suggestion;
+ * revisit with real playtest data (per scarce-bank-mode.md's approval
+ * condition) if 12/9 turns out too punishing in practice.
+ */
+export const BANK_PRESET_VALUES: Record<GameSettings['bankPreset'], number> = {
+  standard: 19,
+  scarce: 12,
+  veryScarce: 9,
 }
 
 export interface GameState {
@@ -126,15 +142,16 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
   )
   const order = shuffledOrder(playerCount)
   const finalSettings = { ...defaultSettings(), ...settings }
+  const bankPerResource = BANK_PRESET_VALUES[finalSettings.bankPreset]
   return {
     board,
     players,
     bank: {
-      brick: BANK_PER_RESOURCE,
-      lumber: BANK_PER_RESOURCE,
-      wool: BANK_PER_RESOURCE,
-      grain: BANK_PER_RESOURCE,
-      ore: BANK_PER_RESOURCE,
+      brick: bankPerResource,
+      lumber: bankPerResource,
+      wool: bankPerResource,
+      grain: bankPerResource,
+      ore: bankPerResource,
     },
     winner: null,
     phase: 'setup',

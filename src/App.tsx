@@ -4,6 +4,7 @@ import BoardView from './components/Board'
 import Lobby, { WaitingRoom } from './components/Lobby'
 import {
   ActionBar,
+  BankSupply,
   BuildGuide,
   DevBar,
   Dice,
@@ -175,7 +176,7 @@ export default function App() {
           names: lobby.names,
           colors: lobby.colors,
           status: `${lobby.names.length} of 4 seats filled.`,
-          settings: { publicHands: false, vpTarget: 10 },
+          settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard' },
         })),
       onAction: (action, fromSeat) =>
         setState((prev) => {
@@ -195,7 +196,7 @@ export default function App() {
       names: [name],
       colors: [color],
       status: 'Share the code or link, then start when everyone is in.',
-      settings: { publicHands: false, vpTarget: 10 },
+      settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard' },
     })
   }
 
@@ -210,7 +211,7 @@ export default function App() {
           names: lobby.names,
           colors: lobby.colors,
           status: `Joined as ${name}.`,
-          settings: { publicHands: false, vpTarget: 10 },
+          settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard' },
         })
       },
       onState: (s) => {
@@ -219,7 +220,7 @@ export default function App() {
       },
       onError: (msg) => setStage((s) => (s.kind === 'waiting' ? { ...s, status: msg } : s)),
     })
-    setStage({ kind: 'waiting', isHost: false, code, names: [], colors: [], status: 'Connecting…', settings: { publicHands: false, vpTarget: 10 } })
+    setStage({ kind: 'waiting', isHost: false, code, names: [], colors: [], status: 'Connecting…', settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard' } })
   }
 
   function hostStart(settings?: Partial<GameSettings>) {
@@ -471,20 +472,34 @@ export default function App() {
       </div>
 
       <footer className="dock">
-        {state.settings.publicHands ? (
-          <div style={{ display: 'flex', gap: '1rem', overflow: 'auto', paddingRight: '1rem' }}>
-            {state.players.map((p) => (
-              <div key={p.id} style={{ flex: '0 0 auto', minWidth: '150px' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                  {p.name}
-                </div>
-                <HandBar player={p} rates={state.phase === 'play' ? rates : undefined} />
+        <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start', flexWrap: 'wrap', flex: '1 1 auto' }}>
+          <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', opacity: 0.7 }}>
+              Your hand
+            </div>
+            {state.settings.publicHands ? (
+              <div style={{ display: 'flex', gap: '1rem', overflow: 'auto', paddingRight: '1rem' }}>
+                {state.players.map((p) => (
+                  <div key={p.id} style={{ flex: '0 0 auto', minWidth: '150px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                      {p.name}
+                    </div>
+                    <HandBar player={p} rates={state.phase === 'play' ? rates : undefined} />
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <HandBar player={viewed} rates={state.phase === 'play' ? rates : undefined} />
+            )}
           </div>
-        ) : (
-          <HandBar player={viewed} rates={state.phase === 'play' ? rates : undefined} />
-        )}
+
+          <div style={{ flex: '0 1 auto' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', opacity: 0.7 }}>
+              Bank supply
+            </div>
+            <BankSupply bank={state.bank} />
+          </div>
+        </div>
 
         {myTurn && state.phase === 'play' && state.hasRolled && state.mode !== 'robber' && (
           <TradeBar

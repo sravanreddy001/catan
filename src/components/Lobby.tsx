@@ -56,6 +56,7 @@ export default function Lobby({
   const [opponents, setOpponents] = useState(1)
   const [vpTarget, setVpTarget] = useState(10)
   const [publicHands, setPublicHands] = useState(false)
+  const [bankPreset, setBankPreset] = useState<'standard' | 'scarce' | 'veryScarce'>('standard')
 
   return (
     <div className="modal">
@@ -134,9 +135,28 @@ export default function Lobby({
                   <option value={15}>15</option>
                 </select>
               </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', marginTop: '0.75rem' }}>
+                <span>Bank preset:</span>
+                <select
+                  value={bankPreset}
+                  onChange={(e) => setBankPreset(e.target.value as 'standard' | 'scarce' | 'veryScarce')}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
+                >
+                  <option value="standard">Standard (19)</option>
+                  <option value="scarce">Scarce (12)</option>
+                  <option value="veryScarce">Very Scarce (9)</option>
+                </select>
+              </label>
+
+              {bankPreset !== 'standard' && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                  Note: Scarce bank means trading more often — resources run dry faster.
+                </p>
+              )}
             </div>
 
-            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget })}>
+            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget, bankPreset })}>
               Start
             </button>
             <button className="btn" onClick={() => setScreen('offline')}>
@@ -230,6 +250,7 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
   const [copied, setCopied] = useState<'code' | 'link' | null>(null)
   const [vpTarget, setVpTarget] = useState(settings.vpTarget)
   const [publicHands, setPublicHands] = useState(settings.publicHands)
+  const [bankPreset, setBankPreset] = useState(settings.bankPreset)
 
   async function copy(what: 'code' | 'link') {
     try {
@@ -283,7 +304,7 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
               Public hands (see all players' cards)
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
               <span>VP target:</span>
               <select
                 value={vpTarget}
@@ -296,11 +317,30 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
                 <option value={15}>15</option>
               </select>
             </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', marginTop: '0.75rem' }}>
+              <span>Bank preset:</span>
+              <select
+                value={bankPreset}
+                onChange={(e) => setBankPreset(e.target.value as 'standard' | 'scarce' | 'veryScarce')}
+                style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
+              >
+                <option value="standard">Standard (19)</option>
+                <option value="scarce">Scarce (12)</option>
+                <option value="veryScarce">Very Scarce (9)</option>
+              </select>
+            </label>
+
+            {bankPreset !== 'standard' && (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                Note: Scarce bank means trading more often — resources run dry faster.
+              </p>
+            )}
           </div>
         )}
 
         {isHost ? (
-          <button className="btn btn--primary" disabled={names.length < 2} onClick={() => onStart({ publicHands, vpTarget })}>
+          <button className="btn btn--primary" disabled={names.length < 2} onClick={() => onStart({ publicHands, vpTarget, bankPreset })}>
             {names.length < 2 ? 'Waiting for players…' : `Start with ${names.length}`}
           </button>
         ) : (
