@@ -37,11 +37,25 @@ export const PIECE_LIMITS = { settlements: 5, cities: 4, roads: 15 }
 /** The bank holds 19 of each resource; production stops when it runs dry. */
 export const BANK_PER_RESOURCE = 19
 
+export interface GameSettings {
+  /** Show every player's hand instead of hiding opponents' cards. */
+  publicHands: boolean
+  /** Victory points needed to win. */
+  vpTarget: number
+}
+
+export function defaultSettings(): GameSettings {
+  return {
+    publicHands: false,
+    vpTarget: 10,
+  }
+}
+
 export interface GameState {
   board: Board
   players: Player[]
   bank: Record<Resource, number>
-  /** Set once someone reaches 10 points; the game accepts no further moves. */
+  /** Set once someone reaches the VP target; the game accepts no further moves. */
   winner: number | null
   phase: 'setup' | 'play'
   setupIndex: number
@@ -64,6 +78,7 @@ export interface GameState {
   discards: Partial<Record<PlayerId, number>>
   /** Random turn order, shuffled once at game start; `turn`/`setupIndex` index into this. */
   order: PlayerId[]
+  settings: GameSettings
 }
 
 export type Action =
@@ -104,12 +119,13 @@ function shuffledOrder(count: number): PlayerId[] {
   return order
 }
 
-export function createGame(playerCount: number, names?: string[], colors?: number[]): GameState {
+export function createGame(playerCount: number, names?: string[], colors?: number[], settings?: Partial<GameSettings>): GameState {
   const board = createBoard()
   const players = createPlayers(playerCount, colors).map((p, i) =>
     names?.[i] ? { ...p, name: names[i] } : p,
   )
   const order = shuffledOrder(playerCount)
+  const finalSettings = { ...defaultSettings(), ...settings }
   return {
     board,
     players,
@@ -138,6 +154,7 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     plentyLeft: 0,
     discards: {},
     order,
+    settings: finalSettings,
   }
 }
 
@@ -385,7 +402,7 @@ export function reduce(state: GameState, action: Action): GameState {
   if (next === state) return state
   const largestArmy = largestArmyHolder(next.players)
   const longestRoad = longestRoadHolder(next.board, next.players)
-  const champion = next.players.find((p) => victoryPoints(p, largestArmy, longestRoad) >= 10)
+  const champion = next.players.find((p) => victoryPoints(p, largestArmy, longestRoad) >= next.settings.vpTarget)
   return champion
     ? { ...next, winner: champion.id, message: `${champion.name} wins!` }
     : next

@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react'
+import type { GameSettings } from '../game/engine'
 import type { Resource } from '../game/board'
 import {
   BUILD_LABEL,
@@ -58,11 +59,13 @@ export function PlayerStrip({
   current,
   largestArmy,
   longestRoad,
+  vpTarget = 10,
 }: {
   players: Player[]
   current: number
   largestArmy: PlayerId | null
   longestRoad: PlayerId | null
+  vpTarget?: number
 }) {
   return (
     <div className="strip">
@@ -76,10 +79,48 @@ export function PlayerStrip({
           <span className="chip__name">{p.name}</span>
           {largestArmy === p.id && <span title="Largest army">⚔️</span>}
           {longestRoad === p.id && <span title="Longest road">🛣️</span>}
-          <span className="chip__vp">{victoryPoints(p, largestArmy, longestRoad)} VP</span>
+          <span className="chip__vp">{victoryPoints(p, largestArmy, longestRoad)} / {vpTarget}</span>
         </div>
       ))}
     </div>
+  )
+}
+
+/** Settings indicator chip showing active non-default settings. */
+export function SettingsChip({ settings }: { settings: GameSettings }) {
+  const [expanded, setExpanded] = useState(false)
+  const hasNonDefault = settings.publicHands || settings.vpTarget !== 10
+
+  if (!hasNonDefault) return null
+
+  return (
+    <>
+      <button
+        className="chip"
+        style={{ cursor: 'pointer', fontSize: '0.8rem' }}
+        onClick={() => setExpanded(!expanded)}
+        title="Active game settings"
+      >
+        <span>⚙️</span>
+        {settings.publicHands && <span title="Public hands mode">👁️</span>}
+        {settings.vpTarget !== 10 && <span title={`VP target: ${settings.vpTarget}`}>🎯</span>}
+      </button>
+
+      {expanded && (
+        <div className="modal" onClick={() => setExpanded(false)}>
+          <div className="modal__panel" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal__title">Game settings</h2>
+            <div style={{ fontSize: '0.9rem', lineHeight: '1.8' }}>
+              {settings.publicHands && <div>✓ Public hands: all players' cards visible</div>}
+              <div>✓ VP target: {settings.vpTarget} points to win</div>
+            </div>
+            <button className="btn" onClick={() => setExpanded(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

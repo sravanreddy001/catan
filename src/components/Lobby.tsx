@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { GameSettings } from '../game/engine'
 import { PALETTE } from '../game/players'
 import { joinUrl } from '../net/session'
 
@@ -6,7 +7,7 @@ interface Props {
   /** Prefilled when the page was opened from a share link. */
   initialCode: string | null
   resumable: boolean
-  onOffline: (count: number, color: number) => void
+  onOffline: (count: number, color: number, settings?: Partial<GameSettings>) => void
   onHost: (name: string, color: number) => void
   onJoin: (code: string, name: string, color: number) => void
   onResume: () => void
@@ -53,6 +54,8 @@ export default function Lobby({
   const [code, setCode] = useState(initialCode ?? '')
   const [color, setColor] = useState(0)
   const [opponents, setOpponents] = useState(1)
+  const [vpTarget, setVpTarget] = useState(10)
+  const [publicHands, setPublicHands] = useState(false)
 
   return (
     <div className="modal">
@@ -105,7 +108,35 @@ export default function Lobby({
             <h2 className="modal__title">Pick your color</h2>
             <ColorPicker value={color} onPick={setColor} />
             <p className="lobby__hint">Opponents take the remaining colors.</p>
-            <button className="btn btn--primary" onClick={() => onOffline(opponents, color)}>
+
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+              <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem' }}>Game settings</h3>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+                <input
+                  type="checkbox"
+                  checked={publicHands}
+                  onChange={(e) => setPublicHands(e.target.checked)}
+                />
+                Public hands (see all players' cards)
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                <span>VP target:</span>
+                <select
+                  value={vpTarget}
+                  onChange={(e) => setVpTarget(Number(e.target.value))}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
+                >
+                  <option value={8}>8</option>
+                  <option value={10}>10 (standard)</option>
+                  <option value={12}>12</option>
+                  <option value={15}>15</option>
+                </select>
+              </label>
+            </div>
+
+            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget })}>
               Start
             </button>
             <button className="btn" onClick={() => setScreen('offline')}>
@@ -189,13 +220,16 @@ interface WaitingProps {
   colors: number[]
   isHost: boolean
   status: string
-  onStart: () => void
+  settings: GameSettings
+  onStart: (settings?: Partial<GameSettings>) => void
   onCancel: () => void
 }
 
 /** Shown between creating/joining a room and the host starting the game. */
-export function WaitingRoom({ code, names, colors, isHost, status, onStart, onCancel }: WaitingProps) {
+export function WaitingRoom({ code, names, colors, isHost, status, settings, onStart, onCancel }: WaitingProps) {
   const [copied, setCopied] = useState<'code' | 'link' | null>(null)
+  const [vpTarget, setVpTarget] = useState(settings.vpTarget)
+  const [publicHands, setPublicHands] = useState(settings.publicHands)
 
   async function copy(what: 'code' | 'link') {
     try {
@@ -236,8 +270,37 @@ export function WaitingRoom({ code, names, colors, isHost, status, onStart, onCa
 
         <p className="lobby__hint">{status}</p>
 
+        {isHost && (
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+            <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem' }}>Game settings</h3>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+              <input
+                type="checkbox"
+                checked={publicHands}
+                onChange={(e) => setPublicHands(e.target.checked)}
+              />
+              Public hands (see all players' cards)
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+              <span>VP target:</span>
+              <select
+                value={vpTarget}
+                onChange={(e) => setVpTarget(Number(e.target.value))}
+                style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
+              >
+                <option value={8}>8</option>
+                <option value={10}>10 (standard)</option>
+                <option value={12}>12</option>
+                <option value={15}>15</option>
+              </select>
+            </label>
+          </div>
+        )}
+
         {isHost ? (
-          <button className="btn btn--primary" disabled={names.length < 2} onClick={onStart}>
+          <button className="btn btn--primary" disabled={names.length < 2} onClick={() => onStart({ publicHands, vpTarget })}>
             {names.length < 2 ? 'Waiting for players…' : `Start with ${names.length}`}
           </button>
         ) : (

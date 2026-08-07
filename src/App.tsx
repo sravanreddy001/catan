@@ -14,6 +14,7 @@ import {
   PendingOffer,
   PlayerStrip,
   ResourcePicker,
+  SettingsChip,
   TradeBar,
 } from './components/Hud'
 import {
@@ -25,6 +26,7 @@ import {
   reduce,
   vertexTargets as vertexTargetsOf,
   type Action,
+  type GameSettings,
   type GameState,
 } from './game/engine'
 import { chooseAction, chooseDiscard, respondToOffer } from './game/ai'
@@ -42,7 +44,7 @@ import {
 
 type Stage =
   | { kind: 'lobby' }
-  | { kind: 'waiting'; isHost: boolean; code: string; names: string[]; colors: number[]; status: string }
+  | { kind: 'waiting'; isHost: boolean; code: string; names: string[]; colors: number[]; status: string; settings: GameSettings }
   | { kind: 'playing' }
 
 export default function App() {
@@ -145,14 +147,14 @@ export default function App() {
   }, [state, botSeats, dispatch])
 
   /** Offline is you (seat 0) against AI opponents in the remaining seats. */
-  function startOffline(opponents: number, color: number) {
+  function startOffline(opponents: number, color: number, settings?: Partial<GameSettings>) {
     const names = ['You', ...Array.from({ length: opponents }, (_, i) => `Bot ${i + 1}`)]
     // Bots take the remaining palette colors, in order, skipping your pick.
     const remaining = PALETTE.map((_, i) => i).filter((i) => i !== color)
     const colors = [color, ...remaining.slice(0, opponents)]
     setSeat(0)
     setBotSeats(names.map((_, i) => i).filter((i) => i > 0))
-    setState(createGame(names.length, names, colors))
+    setState(createGame(names.length, names, colors, settings))
     setStage({ kind: 'playing' })
   }
 
@@ -161,14 +163,20 @@ export default function App() {
     setSeat(0)
     host.current = new HostSession(code, name, color, {
       onLobby: (lobby: LobbyInfo) =>
-        setStage({
+        setStage((s) => (s.kind === 'waiting' ? {
+          ...s,
+          names: lobby.names,
+          colors: lobby.colors,
+          status: `${lobby.names.length} of 4 seats filled.`,
+        } : {
           kind: 'waiting',
           isHost: true,
           code,
           names: lobby.names,
           colors: lobby.colors,
           status: `${lobby.names.length} of 4 seats filled.`,
-        }),
+          settings: { publicHands: false, vpTarget: 10 },
+        })),
       onAction: (action, fromSeat) =>
         setState((prev) => {
           // Guests may only act on their own turn.
@@ -187,6 +195,7 @@ export default function App() {
       names: [name],
       colors: [color],
       status: 'Share the code or link, then start when everyone is in.',
+      settings: { publicHands: false, vpTarget: 10 },
     })
   }
 
@@ -201,6 +210,7 @@ export default function App() {
           names: lobby.names,
           colors: lobby.colors,
           status: `Joined as ${name}.`,
+          settings: { publicHands: false, vpTarget: 10 },
         })
       },
       onState: (s) => {
@@ -209,13 +219,13 @@ export default function App() {
       },
       onError: (msg) => setStage((s) => (s.kind === 'waiting' ? { ...s, status: msg } : s)),
     })
-    setStage({ kind: 'waiting', isHost: false, code, names: [], colors: [], status: 'Connecting…' })
+    setStage({ kind: 'waiting', isHost: false, code, names: [], colors: [], status: 'Connecting…', settings: { publicHands: false, vpTarget: 10 } })
   }
 
-  function hostStart() {
+  function hostStart(settings?: Partial<GameSettings>) {
     const names = host.current?.playerNames ?? []
     const colors = host.current?.playerColors ?? []
-    const game = createGame(names.length, names, colors)
+    const game = createGame(names.length, names, colors, settings)
     setState(game)
     host.current?.broadcastState(game)
     setStage({ kind: 'playing' })
@@ -269,6 +279,7 @@ export default function App() {
         colors={stage.colors}
         isHost={stage.isHost}
         status={stage.status}
+        settings={stage.settings}
         onStart={hostStart}
         onCancel={leave}
       />
@@ -312,12 +323,14 @@ export default function App() {
   return (
     <div className="app" style={{ '--turn-color': current.color } as React.CSSProperties}>
       <header className="topbar">
+        <SettingsChip settings={state.settings} />
         <h1 className="topbar__title">Catan</h1>
         <PlayerStrip
           players={state.players}
           current={currentId}
           largestArmy={largestArmy}
           longestRoad={longestRoad}
+          vpTarget={state.settings.vpTarget}
         />
         <button className="btn btn--ghost btn--icon-only" onClick={() => setShowGuide(true)} title="What things cost">
           ?
@@ -458,7 +471,20 @@ export default function App() {
       </div>
 
       <footer className="dock">
-        <HandBar player={viewed} rates={state.phase === 'play' ? rates : undefined} />
+        {state.settings.publicHands ? (
+          <div style={{ display: 'flex', gap: '1rem', overflow: 'auto', paddingRight: '1rem' }}>
+            {state.players.map((p) => (
+              <div key={p.id} style={{ flex: '0 0 auto', minWidth: '150px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  {p.name}
+                </div>
+                <HandBar player={p} rates={state.phase === 'play' ? rates : undefined} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <HandBar player={viewed} rates={state.phase === 'play' ? rates : undefined} />
+        )}
 
         {myTurn && state.phase === 'play' && state.hasRolled && state.mode !== 'robber' && (
           <TradeBar
