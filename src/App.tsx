@@ -425,7 +425,10 @@ export default function App() {
       )}
 
       <main className="stage">
-        <div className="board-frame">
+        <div
+          className="board-frame"
+          style={{ aspectRatio: `${state.board.bounds.width} / ${state.board.bounds.height}` }}
+        >
           <BoardView
             board={state.board}
             players={state.players}

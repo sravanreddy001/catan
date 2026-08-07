@@ -100,8 +100,9 @@ body {
 .stage {
   flex: 1;
   min-height: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 8px;
   background: radial-gradient(circle at 50% 35%, #1b5177 0%, var(--sea) 55%, var(--bg) 100%);
 }
@@ -112,12 +113,12 @@ body {
   position: relative;
   width: 100%;
   max-width: min(100%, 900px);
+  max-height: 100%;
 }
 
 .board {
   width: 100%;
-  height: auto;
-  max-width: min(100%, 900px);
+  height: 100%;
   touch-action: manipulation;
 }
 
