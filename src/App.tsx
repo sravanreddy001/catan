@@ -392,10 +392,13 @@ export default function App() {
         />
       )}
 
-      {composingOffer && myTurn && (
+      {myTurn && (
         <OfferComposer
           player={current}
           players={state.players}
+          visible={composingOffer}
+          onDismiss={() => setComposingOffer(false)}
+          onReopen={() => setComposingOffer(true)}
           onCancel={() => setComposingOffer(false)}
           onPropose={(offer) => {
             setComposingOffer(false)

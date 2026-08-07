@@ -391,56 +391,175 @@ function Stepper({
   )
 }
 
+function totalCount(b: Bundle): number {
+  return Object.values(b).reduce<number>((sum, n) => sum + (n ?? 0), 0)
+}
+
+/** Their/your resource picker: tap to add one to the draft. */
+function PickCell({
+  icon,
+  count,
+  disabled,
+  onClick,
+}: {
+  icon: string
+  count?: number
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button type="button" className="trade-cell trade-cell--pick" disabled={disabled} onClick={onClick}>
+      <span className="trade-cell__icon">{icon}</span>
+      {count !== undefined && <span className="trade-cell__count">{count}</span>}
+    </button>
+  )
+}
+
+/** A staged want/give cell: tap to remove one. Dim once empty. */
+function StageCell({
+  icon,
+  n,
+  tone,
+  onRemove,
+}: {
+  icon: string
+  n: number
+  tone: 'want' | 'give'
+  onRemove: () => void
+}) {
+  const filled = n > 0
+  return (
+    <button
+      type="button"
+      className={`trade-cell trade-cell--${tone} ${filled ? 'trade-cell--filled' : 'trade-cell--empty'}`}
+      disabled={!filled}
+      onClick={onRemove}
+    >
+      <span className="trade-cell__icon">{icon}</span>
+      {filled && <span className="trade-cell__count">&times;{n}</span>}
+    </button>
+  )
+}
+
+function ReadonlyCell({ icon, n, tone }: { icon: string; n: number; tone: 'want' | 'give' }) {
+  const filled = n > 0
+  return (
+    <div className={`trade-cell trade-cell--${tone} ${filled ? 'trade-cell--filled' : 'trade-cell--empty'}`}>
+      <span className="trade-cell__icon">{icon}</span>
+      {filled && <span className="trade-cell__count">&times;{n}</span>}
+    </div>
+  )
+}
+
 interface OfferComposerProps {
   player: Player
   players: Player[]
+  /** Panel is on-screen. When false and a draft is staged, a reopen pill shows instead. */
+  visible: boolean
+  onDismiss: () => void
+  onReopen: () => void
   onCancel: () => void
   onPropose: (offer: TradeOffer) => void
 }
 
-/** Build an offer: what you put up, what you want, and who it goes to. */
-export function OfferComposer({ player, players, onCancel, onPropose }: OfferComposerProps) {
+/** Build an offer: tap their resources to want them, yours to give them up. */
+export function OfferComposer({
+  player,
+  players,
+  visible,
+  onDismiss,
+  onReopen,
+  onCancel,
+  onPropose,
+}: OfferComposerProps) {
   const [give, setGive] = useState<Bundle>({})
   const [want, setWant] = useState<Bundle>({})
   const [to, setTo] = useState<PlayerId | 'any'>('any')
 
   const others = players.filter((p) => p.id !== player.id)
   const valid = !isEmptyBundle(give) && !isEmptyBundle(want)
+  const staged = totalCount(give) + totalCount(want)
+
+  const addWant = (r: Resource) => setWant((w) => ({ ...w, [r]: (w[r] ?? 0) + 1 }))
+  const removeWant = (r: Resource) => setWant((w) => ({ ...w, [r]: Math.max(0, (w[r] ?? 0) - 1) }))
+  const addGive = (r: Resource) => setGive((g) => ({ ...g, [r]: (g[r] ?? 0) + 1 }))
+  const removeGive = (r: Resource) => setGive((g) => ({ ...g, [r]: Math.max(0, (g[r] ?? 0) - 1) }))
+  const reset = () => {
+    setGive({})
+    setWant({})
+    setTo('any')
+  }
+
+  if (!visible) {
+    if (staged === 0) return null
+    return (
+      <button className="trade-reopen" onClick={onReopen}>
+        Trade ({staged} staged)
+      </button>
+    )
+  }
 
   return (
-    <div className="modal">
+    <div
+      className="modal"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onDismiss()
+      }}
+    >
       <div className="modal__panel">
-        <h2 className="modal__title">Propose a trade</h2>
-
-        <div className="offer__section">
-          <span className="offer__head">You give</span>
-          <div className="offer__grid">
-            {RESOURCES.map((r) => (
-              <Fragment key={r}>
-                <span className="offer__res">
-                  {RESOURCE_ICON[r]}
-                  <small>{player.hand[r]}</small>
-                </span>
-                <Stepper
-                  value={give[r] ?? 0}
-                  max={player.hand[r]}
-                  onChange={(n) => setGive({ ...give, [r]: n })}
-                />
-              </Fragment>
-            ))}
-          </div>
+        <div className="trade-head">
+          <h2 className="modal__title">Trade</h2>
+          <button className="trade-close" onClick={onDismiss} aria-label="Dismiss">
+            &times;
+          </button>
         </div>
 
-        <div className="offer__section">
-          <span className="offer__head">You want</span>
-          <div className="offer__grid">
-            {RESOURCES.map((r) => (
-              <Fragment key={r}>
-                <span className="offer__res">{RESOURCE_ICON[r]}</span>
-                <Stepper value={want[r] ?? 0} onChange={(n) => setWant({ ...want, [r]: n })} />
-              </Fragment>
-            ))}
-          </div>
+        <span className="trade-eyebrow">Theirs</span>
+        <div className="trade-grid">
+          {RESOURCES.map((r) => (
+            <PickCell key={r} icon={RESOURCE_ICON[r]} onClick={() => addWant(r)} />
+          ))}
+        </div>
+
+        <span className="trade-eyebrow trade-eyebrow--want">Want</span>
+        <div className="trade-grid">
+          {RESOURCES.map((r) => (
+            <StageCell
+              key={r}
+              icon={RESOURCE_ICON[r]}
+              n={want[r] ?? 0}
+              tone="want"
+              onRemove={() => removeWant(r)}
+            />
+          ))}
+        </div>
+
+        <hr className="trade-divider" />
+
+        <span className="trade-eyebrow trade-eyebrow--give">Give</span>
+        <div className="trade-grid">
+          {RESOURCES.map((r) => (
+            <StageCell
+              key={r}
+              icon={RESOURCE_ICON[r]}
+              n={give[r] ?? 0}
+              tone="give"
+              onRemove={() => removeGive(r)}
+            />
+          ))}
+        </div>
+
+        <span className="trade-eyebrow">Yours</span>
+        <div className="trade-grid">
+          {RESOURCES.map((r) => (
+            <PickCell
+              key={r}
+              icon={RESOURCE_ICON[r]}
+              count={player.hand[r]}
+              disabled={(give[r] ?? 0) >= player.hand[r]}
+              onClick={() => addGive(r)}
+            />
+          ))}
         </div>
 
         <div className="offer__to">
@@ -463,13 +582,22 @@ export function OfferComposer({ player, players, onCancel, onPropose }: OfferCom
         </div>
 
         <div className="modal__actions">
-          <button className="btn" onClick={onCancel}>
+          <button
+            className="btn"
+            onClick={() => {
+              reset()
+              onCancel()
+            }}
+          >
             Cancel
           </button>
           <button
             className="btn btn--primary"
             disabled={!valid}
-            onClick={() => onPropose({ from: player.id, to, give, want, declinedBy: [] })}
+            onClick={() => {
+              onPropose({ from: player.id, to, give, want, declinedBy: [] })
+              reset()
+            }}
           >
             Propose
           </button>
@@ -498,16 +626,29 @@ export function OfferResponse({ offer, players, onAccept, onDecline }: OfferResp
   return (
     <div className="modal">
       <div className="modal__panel">
-        <h2 className="modal__title">
-          {proposer.name} wants to trade {bundleText(offer.give)} for {bundleText(offer.want)}
-        </h2>
+        <h2 className="modal__title">{proposer.name} offered a trade</h2>
+
+        <span className="trade-eyebrow trade-eyebrow--want">You&apos;d get</span>
+        <div className="trade-grid">
+          {RESOURCES.map((r) => (
+            <ReadonlyCell key={r} icon={RESOURCE_ICON[r]} n={offer.give[r] ?? 0} tone="want" />
+          ))}
+        </div>
+
+        <span className="trade-eyebrow trade-eyebrow--give">You&apos;d give</span>
+        <div className="trade-grid">
+          {RESOURCES.map((r) => (
+            <ReadonlyCell key={r} icon={RESOURCE_ICON[r]} n={offer.want[r] ?? 0} tone="give" />
+          ))}
+        </div>
+
         <div className="offer__responders">
           {responders.map((p) => {
             const able = hasCards(p, offer.want)
             return (
               <button
                 key={p.id}
-                className="btn btn--primary"
+                className="btn btn--accept"
                 disabled={!able}
                 onClick={() => onAccept(p.id)}
               >
