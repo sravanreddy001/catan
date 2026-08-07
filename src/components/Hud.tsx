@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react'
 import type { GameSettings } from '../game/engine'
+import type { AIPreset } from '../game/ai'
 import type { Resource } from '../game/board'
 import {
   BUILD_LABEL,
@@ -103,11 +104,19 @@ export function PlayerStrip({
 }
 
 /** Settings indicator chip showing active non-default settings. */
-export function SettingsChip({ settings }: { settings: GameSettings }) {
+export function SettingsChip({ settings, botPresets = {} }: { settings: GameSettings; botPresets?: Record<number, AIPreset> }) {
   const [expanded, setExpanded] = useState(false)
-  const hasNonDefault = settings.publicHands || settings.vpTarget !== 10 || settings.bankPreset !== 'standard' || settings.santaMode
+  const hasNonDefaultSettings = settings.publicHands || settings.vpTarget !== 10 || settings.bankPreset !== 'standard' || settings.santaMode
+  const hasActiveBotPresets = Object.values(botPresets).some((p) => p !== null)
+  const hasNonDefault = hasNonDefaultSettings || hasActiveBotPresets
 
   if (!hasNonDefault) return null
+
+  const presetEmojis: Record<string, string> = {
+    aggressive: '⚔️',
+    economic: '💰',
+    turtle: '🐢',
+  }
 
   const bankPresetLabel = {
     standard: 'Standard (19)',
@@ -128,6 +137,10 @@ export function SettingsChip({ settings }: { settings: GameSettings }) {
         {settings.vpTarget !== 10 && <span title={`VP target: ${settings.vpTarget}`}>🎯</span>}
         {settings.bankPreset !== 'standard' && <span title={`Bank: ${bankPresetLabel[settings.bankPreset]}`}>🏦</span>}
         {settings.santaMode && <span title="Santa mode">🎅</span>}
+        {hasActiveBotPresets && Object.entries(botPresets).map(([seat, preset]) => {
+          if (!preset) return null
+          return <span key={seat} title={`Bot ${seat}: ${preset}`}>{presetEmojis[preset]}</span>
+        })}
       </button>
 
       {expanded && (
@@ -136,9 +149,21 @@ export function SettingsChip({ settings }: { settings: GameSettings }) {
             <h2 className="modal__title">Game settings</h2>
             <div style={{ fontSize: '0.9rem', lineHeight: '1.8' }}>
               {settings.publicHands && <div>✓ Public hands: all players' cards visible</div>}
-              <div>✓ VP target: {settings.vpTarget} points to win</div>
+              {settings.vpTarget !== 10 && <div>✓ VP target: {settings.vpTarget} points to win</div>}
               {settings.bankPreset !== 'standard' && <div>✓ Bank preset: {bankPresetLabel[settings.bankPreset]}</div>}
               {settings.santaMode && <div>✓ Santa mode: friendly variant (no robber)</div>}
+              {hasActiveBotPresets && (
+                <>
+                  <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                    <strong>AI personalities:</strong>
+                  </div>
+                  {Object.entries(botPresets).map(([seat, preset]) => preset && (
+                    <div key={seat}>
+                      {presetEmojis[preset]} Bot {seat}: {preset}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
             <button className="btn" onClick={() => setExpanded(false)}>
               Close

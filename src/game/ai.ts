@@ -2,6 +2,8 @@
 // wants, exactly as a human would dispatch it, so it plays by the same rules
 // the reducer enforces — it cannot make an illegal move by construction.
 
+export type AIPreset = 'aggressive' | 'economic' | 'turtle' | null
+
 import type { Resource } from './board'
 import {
   currentPlayerId,
@@ -23,6 +25,54 @@ import {
 
 const ALL: Resource[] = ['brick', 'lumber', 'wool', 'grain', 'ore']
 
+/** Preset-specific behavioral multipliers. */
+interface PresetConfig {
+  diversityBonus: number
+  hitsLeaderBonus: number
+  tradeThreshold: number
+  offerAcceptMultiplier: number
+  cityPreference: number
+}
+
+function getPresetConfig(preset: AIPreset): PresetConfig {
+  // Default (null) is the baseline.
+  if (preset === 'aggressive') {
+    return {
+      diversityBonus: 2.5, // Same as default
+      hitsLeaderBonus: 16, // Increased from 12, targets leader harder
+      tradeThreshold: 1, // Tighter: only trade when strictly needed
+      offerAcceptMultiplier: 0.8, // Multiplies gain/loss ratio, making it harder to accept
+      cityPreference: 0.5, // Same as default
+    }
+  }
+  if (preset === 'economic') {
+    return {
+      diversityBonus: 3.5, // Increased, favors varied resources
+      hitsLeaderBonus: 12, // Same as default
+      tradeThreshold: 0.7, // Looser: trades more readily
+      offerAcceptMultiplier: 1.2, // Multiplies gain/loss ratio, easier to accept trades
+      cityPreference: 1.2, // Favors city upgrades over settlements
+    }
+  }
+  if (preset === 'turtle') {
+    return {
+      diversityBonus: 2.5, // Same as default
+      hitsLeaderBonus: 6, // Decreased from 12, avoids fights
+      tradeThreshold: 1.3, // Much tighter: holds resources
+      offerAcceptMultiplier: 0.6, // Very reluctant to trade
+      cityPreference: 0.3, // Strongly prefers settlements/roads for longest road
+    }
+  }
+  // Default (no preset)
+  return {
+    diversityBonus: 2.5,
+    hitsLeaderBonus: 12,
+    tradeThreshold: 1,
+    offerAcceptMultiplier: 1,
+    cityPreference: 1,
+  }
+}
+
 /** Ways to roll each number: 6 and 8 are the best, 2 and 12 the worst. */
 function pips(n: number | undefined): number {
   return n === undefined ? 0 : 6 - Math.abs(7 - n)
@@ -38,7 +88,8 @@ function tilesAt(state: GameState, vertexId: string) {
  * Corner quality: total pips, plus a bonus for touching resources the player
  * does not already have — variety matters more than raw volume early on.
  */
-function vertexScore(state: GameState, vertexId: string, player: Player): number {
+function vertexScore(state: GameState, vertexId: string, player: Player, preset: AIPreset = null): number {
+  const config = getPresetConfig(preset)
   const tiles = tilesAt(state, vertexId)
   const owned = new Set<Resource>()
   for (const v of [...player.settlements, ...player.cities]) {
@@ -49,7 +100,7 @@ function vertexScore(state: GameState, vertexId: string, player: Player): number
   for (const t of tiles) {
     if (t.type === 'desert') continue
     score += pips(t.number)
-    if (!owned.has(t.type as Resource)) score += 2.5
+    if (!owned.has(t.type as Resource)) score += config.diversityBonus
     // Brick and lumber early: roads and settlements come before ore.
     if (t.type === 'brick' || t.type === 'lumber') score += 0.75
   }
@@ -87,7 +138,8 @@ function missingFor(
 }
 
 /** Robber goes on the strongest tile of whoever is winning, never our own. */
-function robberTarget(state: GameState, seat: number): string {
+function robberTarget(state: GameState, seat: number, preset: AIPreset = null): string {
+  const config = getPresetConfig(preset)
   const me = state.players[seat]
   const mine = new Set([...me.settlements, ...me.cities])
   const leader = best(
@@ -108,7 +160,7 @@ function robberTarget(state: GameState, seat: number): string {
     const anyone = state.players.some(
       (p) => p.id !== seat && corners.some((v) => p.settlements.includes(v) || p.cities.includes(v)),
     )
-    return pips(t.number) + (hitsLeader ? 12 : 0) + (anyone ? 4 : 0)
+    return pips(t.number) + (hitsLeader ? config.hitsLeaderBonus : 0) + (anyone ? 4 : 0)
   })
 
   return scored?.id ?? state.board.tiles.find((t) => t.id !== state.robberTile)!.id
@@ -124,7 +176,8 @@ function cityTargets(state: GameState): string[] {
   return [...vertexTargets({ ...state, mode: 'city' })]
 }
 
-function tradeTowardsGoal(state: GameState, seat: number): Action | null {
+function tradeTowardsGoal(state: GameState, seat: number, preset: AIPreset = null): Action | null {
+  const config = getPresetConfig(preset)
   const me = state.players[seat]
   const rates = ratesFor(state, seat)
   const goal = me.settlements.length > 0 && me.cities.length < 4 ? 'city' : 'settlement'
@@ -133,9 +186,11 @@ function tradeTowardsGoal(state: GameState, seat: number): Action | null {
   if (!wanted) return null
 
   // Only trade away a resource we are not short of and hold a surplus of.
+  // Threshold controls willingness to trade: lower = more willing.
+  const threshold = rates[ALL[0]!] * config.tradeThreshold
   for (const give of ALL) {
     if (give === wanted || need[give]) continue
-    if (me.hand[give] >= rates[give] + 1) return { type: 'bankTrade', give, get: wanted }
+    if (me.hand[give] >= threshold + 1) return { type: 'bankTrade', give, get: wanted }
   }
   return null
 }
@@ -144,7 +199,7 @@ function tradeTowardsGoal(state: GameState, seat: number): Action | null {
  * The bot's move for the current turn. Returns null when it has nothing left
  * to do, which the caller turns into an end of turn.
  */
-export function chooseAction(state: GameState, seat: number): Action | null {
+export function chooseAction(state: GameState, seat: number, preset: AIPreset = null): Action | null {
   if (currentPlayerId(state) !== seat) return null
   const me = state.players[seat]
 
@@ -175,7 +230,7 @@ export function chooseAction(state: GameState, seat: number): Action | null {
     return { type: 'santaBonus', res: least ?? 'ore' }
   }
 
-  if (state.mode === 'robber') return { type: 'tile', id: robberTarget(state, seat) }
+  if (state.mode === 'robber') return { type: 'tile', id: robberTarget(state, seat, preset) }
 
   // --- opening placements -------------------------------------------------
   if (state.phase === 'setup') {
@@ -186,13 +241,13 @@ export function chooseAction(state: GameState, seat: number): Action | null {
       const pickEdge = best(edges, (id) => {
         const e = state.board.edges.find((x) => x.id === id)!
         const far = e.a === state.pendingRoadFrom ? e.b : e.a
-        return vertexScore(state, far, me)
+        return vertexScore(state, far, me, preset)
       })
       return { type: 'edge', id: pickEdge! }
     }
     const spots = [...vertexTargets(state)]
     if (!spots.length) return null
-    return { type: 'vertex', id: best(spots, (v) => vertexScore(state, v, me))! }
+    return { type: 'vertex', id: best(spots, (v) => vertexScore(state, v, me, preset))! }
   }
 
   // --- normal turn --------------------------------------------------------
@@ -200,7 +255,7 @@ export function chooseAction(state: GameState, seat: number): Action | null {
 
   // Finish a build already committed to.
   if (state.mode === 'city' || state.mode === 'settlement') {
-    const target = best([...vertexTargets(state)], (v) => vertexScore(state, v, me))
+    const target = best([...vertexTargets(state)], (v) => vertexScore(state, v, me, preset))
     return target ? { type: 'vertex', id: target } : { type: 'setMode', mode: null }
   }
   if (state.mode === 'road') {
@@ -208,7 +263,7 @@ export function chooseAction(state: GameState, seat: number): Action | null {
     if (!edges.length) return { type: 'setMode', mode: null }
     const pickEdge = best(edges, (id) => {
       const e = state.board.edges.find((x) => x.id === id)!
-      return Math.max(vertexScore(state, e.a, me), vertexScore(state, e.b, me))
+      return Math.max(vertexScore(state, e.a, me, preset), vertexScore(state, e.b, me, preset))
     })
     return { type: 'edge', id: pickEdge! }
   }
@@ -222,25 +277,37 @@ export function chooseAction(state: GameState, seat: number): Action | null {
   // Cities first (2 VP and double production), then settlements, then roads.
   // Each checks for a legal spot: without that the bot keeps selecting a build
   // it cannot place and never finishes its turn.
-  if (canAfford(me, 'city') && cityTargets(state).length > 0) {
+  // Preset's cityPreference multiplier affects the order: high = prefer cities, low = prefer settlements.
+  const config = getPresetConfig(preset)
+  const hasCitySpots = canAfford(me, 'city') && cityTargets(state).length > 0
+  const hasSettlementSpots = canAfford(me, 'settlement') && targetsFor(state, 'settlement').length > 0
+
+  if (config.cityPreference >= 1 && hasCitySpots) {
+    // Default and economic (>=1): prioritize cities, matching pre-preset behavior.
     return { type: 'setMode', mode: 'city' }
   }
-  if (canAfford(me, 'settlement') && targetsFor(state, 'settlement').length > 0) {
+  if (hasSettlementSpots) {
+    // Turtle/aggressive (<1): prefer settlement spread, or fallback if no cities.
     return { type: 'setMode', mode: 'settlement' }
   }
+  if (hasCitySpots) {
+    // Secondary: city if settlement not available.
+    return { type: 'setMode', mode: 'city' }
+  }
+
   if (canAffordDev(me) && state.deck.length > 0 && handTotal(me) >= 4) return { type: 'buyDev' }
   if (canAfford(me, 'road') && me.roads.length < 8 && targetsFor(state, 'road').length > 0) {
     return { type: 'setMode', mode: 'road' }
   }
 
-  const trade = tradeTowardsGoal(state, seat)
+  const trade = tradeTowardsGoal(state, seat, preset)
   if (trade) return trade
 
   return null
 }
 
 /** A bot always discards a random legal bundle when forced to. */
-export function chooseDiscard(state: GameState, seat: number): Partial<Record<Resource, number>> {
+export function chooseDiscard(state: GameState, seat: number, _preset: AIPreset = null): Partial<Record<Resource, number>> {
   const owed = state.discards[seat as PlayerId]
   if (!owed) return {}
   return randomDiscard(state.players[seat], owed)
@@ -250,7 +317,8 @@ export function chooseDiscard(state: GameState, seat: number): Partial<Record<Re
  * How a bot answers a trade offer aimed at it: accept only when it can cover
  * the request and the incoming cards help more than what it gives up.
  */
-export function respondToOffer(state: GameState, seat: number): 'accept' | 'decline' {
+export function respondToOffer(state: GameState, seat: number, preset: AIPreset = null): 'accept' | 'decline' {
+  const config = getPresetConfig(preset)
   const offer = state.offer
   if (!offer) return 'decline'
   const me = state.players[seat]
@@ -270,5 +338,6 @@ export function respondToOffer(state: GameState, seat: number): 'accept' | 'decl
     (sum, [res, n]) => sum + (need[res as Resource] ? (n ?? 0) * 2 : (n ?? 0) * 0.75),
     0,
   )
-  return gain >= loss ? 'accept' : 'decline'
+  // Multiply the gain/loss ratio by preset multiplier to control acceptance threshold
+  return gain * config.offerAcceptMultiplier >= loss ? 'accept' : 'decline'
 }

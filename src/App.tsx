@@ -30,7 +30,7 @@ import {
   type GameSettings,
   type GameState,
 } from './game/engine'
-import { chooseAction, chooseDiscard, respondToOffer } from './game/ai'
+import { chooseAction, chooseDiscard, respondToOffer, type AIPreset } from './game/ai'
 import { PALETTE, largestArmyHolder, victoryPoints, type BuildKind, type PlayerId } from './game/players'
 import {
   GuestSession,
@@ -56,8 +56,8 @@ export default function App() {
   const [rolling, setRolling] = useState(false)
   const [composingOffer, setComposingOffer] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
-  /** Seats played by the AI (offline only). */
-  const [botSeats, setBotSeats] = useState<number[]>([])
+  /** AI preset assigned to each bot seat (offline only). Seat -> preset mapping. */
+  const [botPresets, setBotPresets] = useState<Record<number, AIPreset>>({})
   /** Bumped after each bot move so a no-op action still re-triggers the loop. */
   const [botTick, setBotTick] = useState(0)
 
@@ -100,44 +100,47 @@ export default function App() {
 
   // Bot turns: one action per tick, paced so a human can follow what happened.
   useEffect(() => {
-    if (!state || state.winner !== null || botSeats.length === 0) return
+    if (!state || state.winner !== null || Object.keys(botPresets).length === 0) return
     const active = currentPlayerId(state)
-    if (!botSeats.includes(active)) return
+    if (!(active in botPresets)) return
 
     const timer = window.setTimeout(() => {
-      const action = chooseAction(state, active)
+      const action = chooseAction(state, active, botPresets[active])
       dispatch(action ?? { type: 'endTurn' })
       setBotTick((t) => t + 1)
     }, 700)
     return () => window.clearTimeout(timer)
-  }, [state, botSeats, botTick, dispatch])
+  }, [state, botPresets, botTick, dispatch])
 
   // A bot discards on its own the moment a 7 leaves it owing cards.
   useEffect(() => {
     if (!state) return
-    const owedSeat = botSeats.find((s) => state.discards[s as PlayerId])
+    const owedSeat = Object.keys(botPresets).find((s) => state.discards[Number(s) as PlayerId])
     if (owedSeat === undefined) return
+    const seat = Number(owedSeat)
 
     const timer = window.setTimeout(() => {
-      dispatch({ type: 'discard', playerId: owedSeat as PlayerId, cards: chooseDiscard(state, owedSeat) })
+      dispatch({ type: 'discard', playerId: seat as PlayerId, cards: chooseDiscard(state, seat, botPresets[seat]) })
     }, 500)
     return () => window.clearTimeout(timer)
-  }, [state, botSeats, dispatch])
+  }, [state, botPresets, dispatch])
 
   // A bot answers a trade offer pointed at it — one at a time, so an offer to
   // 'any' survives a bot's rejection as long as another responder is pending.
   useEffect(() => {
-    if (!state?.offer || botSeats.length === 0) return
+    if (!state?.offer || Object.keys(botPresets).length === 0) return
     const offer = state.offer
-    const responders = botSeats.filter(
-      (s) =>
-        (offer.to === 'any' ? s !== offer.from : s === offer.to) &&
-        !offer.declinedBy.includes(s as PlayerId),
-    )
+    const responders = Object.keys(botPresets)
+      .map(Number)
+      .filter(
+        (s) =>
+          (offer.to === 'any' ? s !== offer.from : s === offer.to) &&
+          !offer.declinedBy.includes(s as PlayerId),
+      )
     if (responders.length === 0) return
 
     const timer = window.setTimeout(() => {
-      const taker = responders.find((s) => respondToOffer(state, s) === 'accept')
+      const taker = responders.find((s) => respondToOffer(state, s, botPresets[s]) === 'accept')
       dispatch(
         taker !== undefined
           ? { type: 'acceptOffer', responder: taker as PlayerId }
@@ -145,16 +148,25 @@ export default function App() {
       )
     }, 900)
     return () => window.clearTimeout(timer)
-  }, [state, botSeats, dispatch])
+  }, [state, botPresets, dispatch])
 
   /** Offline is you (seat 0) against AI opponents in the remaining seats. */
-  function startOffline(opponents: number, color: number, settings?: Partial<GameSettings>) {
+  function startOffline(opponents: number, color: number, settings?: Partial<GameSettings>, presets?: Record<number, AIPreset>) {
     const names = ['You', ...Array.from({ length: opponents }, (_, i) => `Bot ${i + 1}`)]
     // Bots take the remaining palette colors, in order, skipping your pick.
     const remaining = PALETTE.map((_, i) => i).filter((i) => i !== color)
     const colors = [color, ...remaining.slice(0, opponents)]
     setSeat(0)
-    setBotSeats(names.map((_, i) => i).filter((i) => i > 0))
+    // Build bot presets: use provided presets or random if not specified
+    const botSeats = names.map((_, i) => i).filter((i) => i > 0)
+    const assignedPresets = presets || {}
+    for (const seat of botSeats) {
+      if (!(seat in assignedPresets)) {
+        const presetOptions: AIPreset[] = ['aggressive', 'economic', 'turtle', null]
+        assignedPresets[seat] = presetOptions[Math.floor(Math.random() * presetOptions.length)]!
+      }
+    }
+    setBotPresets(assignedPresets)
     setState(createGame(names.length, names, colors, settings))
     setStage({ kind: 'playing' })
   }
@@ -238,10 +250,16 @@ export default function App() {
     setState(s.state)
     setSeat(s.seat >= 0 ? s.seat : 0)
     // Offline games are saved with no room code; their bots are the seats the
-    // engine named "Bot n" when the game was created.
-    setBotSeats(
-      s.code ? [] : s.state.players.map((p, i) => (p.name.startsWith('Bot') ? i : -1)).filter((i) => i >= 0),
-    )
+    // engine named "Bot n" when the game was created. The presets chosen at
+    // lobby time aren't persisted, so resumed bots fall back to the default
+    // behavior rather than re-rolling a personality on every resume.
+    if (!s.code) {
+      const presets: Record<number, AIPreset> = {}
+      for (let i = 0; i < s.state.players.length; i++) {
+        if (s.state.players[i].name.startsWith('Bot')) presets[i] = null
+      }
+      setBotPresets(presets)
+    }
     setStage({ kind: 'playing' })
   }
 
@@ -252,7 +270,7 @@ export default function App() {
     guest.current = null
     setState(null)
     setSeat(null)
-    setBotSeats([])
+    setBotPresets({})
     setStage({ kind: 'lobby' })
   }
 
@@ -306,7 +324,7 @@ export default function App() {
             !state.offer!.declinedBy.includes(i as PlayerId),
         )
     : []
-  const humanCanAnswerOffer = offerResponders.some((s) => !botSeats.includes(s))
+  const humanCanAnswerOffer = offerResponders.some((s) => !(s in botPresets))
   /** Which seat this device is answering (or proposing) as. */
   const viewerSeat = (seat ?? currentId) as PlayerId
   const viewed = seat === null ? current : state.players[seat]
@@ -324,7 +342,7 @@ export default function App() {
   return (
     <div className="app" style={{ '--turn-color': current.color } as React.CSSProperties}>
       <header className="topbar">
-        <SettingsChip settings={state.settings} />
+        <SettingsChip settings={state.settings} botPresets={botPresets} />
         <h1 className="topbar__title">Catan</h1>
         <PlayerStrip
           players={state.players}

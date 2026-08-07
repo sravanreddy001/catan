@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { GameSettings } from '../game/engine'
+import type { AIPreset } from '../game/ai'
 import { PALETTE } from '../game/players'
 import { joinUrl } from '../net/session'
 
@@ -7,13 +8,13 @@ interface Props {
   /** Prefilled when the page was opened from a share link. */
   initialCode: string | null
   resumable: boolean
-  onOffline: (count: number, color: number, settings?: Partial<GameSettings>) => void
+  onOffline: (count: number, color: number, settings?: Partial<GameSettings>, presets?: Record<number, AIPreset>) => void
   onHost: (name: string, color: number) => void
   onJoin: (code: string, name: string, color: number) => void
   onResume: () => void
 }
 
-type Screen = 'mode' | 'offline' | 'offline-color' | 'online' | 'join'
+type Screen = 'mode' | 'offline' | 'offline-color' | 'offline-presets' | 'online' | 'join'
 
 /** A row of palette swatches; `taken` colors are shown but disabled. */
 function ColorPicker({
@@ -58,6 +59,13 @@ export default function Lobby({
   const [publicHands, setPublicHands] = useState(false)
   const [bankPreset, setBankPreset] = useState<'standard' | 'scarce' | 'veryScarce'>('standard')
   const [santaMode, setSantaMode] = useState(false)
+  const [botPresets, setBotPresets] = useState<Record<number, AIPreset>>({})
+  const presetLabels: Record<string, string> = {
+    aggressive: 'Aggressive (targets leader, plays hard)',
+    economic: 'Economic (builds cities, trades often)',
+    turtle: 'Turtle (spreads settlements, avoids fights)',
+    'null': 'Default (today\'s usual bot)',
+  }
 
   return (
     <div className="modal">
@@ -166,10 +174,60 @@ export default function Lobby({
               )}
             </div>
 
-            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget, bankPreset, santaMode })}>
-              Start
+            <button className="btn btn--primary" onClick={() => {
+              // Initialize bot presets for the number of opponents
+              const newPresets: Record<number, AIPreset> = {}
+              for (let i = 1; i <= opponents; i++) {
+                newPresets[i] = null // Start with default
+              }
+              setBotPresets(newPresets)
+              setScreen('offline-presets')
+            }}>
+              Next: AI personalities
             </button>
             <button className="btn" onClick={() => setScreen('offline')}>
+              Back
+            </button>
+          </>
+        )}
+
+        {screen === 'offline-presets' && (
+          <>
+            <h2 className="modal__title">AI personalities</h2>
+            <p className="lobby__hint">Customize each bot's playstyle, or skip for the default.</p>
+
+            {Array.from({ length: opponents }).map((_, i) => {
+              const botSeat = i + 1
+              const preset = botPresets[botSeat] ?? null
+              return (
+                <div key={botSeat} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+                  <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, marginBottom: '0.5rem' }}>
+                    Bot {botSeat}:
+                  </label>
+                  <select
+                    value={preset ?? 'null'}
+                    onChange={(e) => {
+                      const value = e.target.value === 'null' ? null : (e.target.value as AIPreset)
+                      setBotPresets({ ...botPresets, [botSeat]: value })
+                    }}
+                    style={{ padding: '0.5rem', fontSize: '0.85rem', width: '100%' }}
+                  >
+                    <option value="null">Default (today's usual bot)</option>
+                    <option value="aggressive">Aggressive</option>
+                    <option value="economic">Economic</option>
+                    <option value="turtle">Turtle</option>
+                  </select>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                    {presetLabels[preset ?? 'null']}
+                  </p>
+                </div>
+              )
+            })}
+
+            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget, bankPreset, santaMode }, botPresets)}>
+              Start
+            </button>
+            <button className="btn" onClick={() => setScreen('offline-color')}>
               Back
             </button>
           </>
