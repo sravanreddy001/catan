@@ -108,9 +108,9 @@ export default function Board({
                   {Array.from({ length: pipCount(t.number) }, (_, i) => (
                     <circle
                       key={i}
-                      cx={t.cx + (i - (pipCount(t.number!) - 1) / 2) * 4.5}
+                      cx={t.cx + (i - (pipCount(t.number!) - 1) / 2) * 6}
                       cy={t.cy + 24}
-                      r={1.6}
+                      r={2.4}
                       fill={numberColor(t.number!)}
                     />
                   ))}
@@ -131,13 +131,13 @@ export default function Board({
             <circle
               cx={tile.cx - 22}
               cy={tile.cy - 14}
-              r={15}
+              r={18}
               fill="#1a1a1f"
               stroke="#f4ead6"
-              strokeWidth={2.5}
+              strokeWidth={3}
             />
-            <text className="tile__robber" x={tile.cx - 22} y={tile.cy - 8} textAnchor="middle">
-              🕵️
+            <text className="tile__robber" x={tile.cx - 22} y={tile.cy - 6} textAnchor="middle">
+              🥷
             </text>
           </g>
         )
