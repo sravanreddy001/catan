@@ -55,6 +55,28 @@ type Stage =
   | { kind: 'waiting'; isHost: boolean; code: string; names: string[]; colors: number[]; status: string; settings: GameSettings }
   | { kind: 'playing' }
 
+/**
+ * Host-side authorization for a guest-sent action. Most actions only make
+ * sense from the current player, but a few name their own actor and are
+ * legitimately sent off-turn (discarding on a 7, responding to a trade
+ * offer aimed at you, cancelling your own pending offer) — those are
+ * checked against that actor field instead, so a guest can act as itself
+ * without needing to be the seat currently taking a turn.
+ */
+function actorMayDispatch(state: GameState, action: Action, fromSeat: number): boolean {
+  switch (action.type) {
+    case 'discard':
+      return action.playerId === fromSeat
+    case 'acceptOffer':
+    case 'declineOffer':
+      return action.responder === fromSeat
+    case 'cancelOffer':
+      return state.offer?.from === fromSeat
+    default:
+      return currentPlayerId(state) === fromSeat
+  }
+}
+
 export default function App() {
   const [stage, setStage] = useState<Stage>({ kind: 'lobby' })
   const [state, setState] = useState<GameState | null>(null)
@@ -201,8 +223,7 @@ export default function App() {
         })),
       onAction: (action, fromSeat) =>
         setState((prev) => {
-          // Guests may only act on their own turn.
-          if (!prev || currentPlayerId(prev) !== fromSeat) return prev
+          if (!prev || !actorMayDispatch(prev, action, fromSeat)) return prev
           const next = reduce(prev, action)
           host.current?.broadcastState(next)
           return next
