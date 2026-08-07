@@ -12,7 +12,7 @@ interface Props {
   onResume: () => void
 }
 
-type Screen = 'mode' | 'offline' | 'offline-color' | 'online'
+type Screen = 'mode' | 'offline' | 'offline-color' | 'online' | 'join'
 
 /** A row of palette swatches; `taken` colors are shown but disabled. */
 function ColorPicker({
@@ -48,7 +48,7 @@ export default function Lobby({
   onJoin,
   onResume,
 }: Props) {
-  const [screen, setScreen] = useState<Screen>(initialCode ? 'online' : 'mode')
+  const [screen, setScreen] = useState<Screen>(initialCode ? 'join' : 'mode')
   const [name, setName] = useState('')
   const [code, setCode] = useState(initialCode ?? '')
   const [color, setColor] = useState(0)
@@ -110,6 +110,31 @@ export default function Lobby({
             </button>
             <button className="btn" onClick={() => setScreen('offline')}>
               Back
+            </button>
+          </>
+        )}
+
+        {screen === 'join' && (
+          <>
+            <h2 className="modal__title">Join room {code}</h2>
+            <input
+              className="field"
+              placeholder="Your name"
+              value={name}
+              maxLength={12}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+            />
+            <ColorPicker value={color} onPick={setColor} />
+            <button
+              className="btn btn--primary"
+              disabled={!name.trim() || code.trim().length < 4}
+              onClick={() => onJoin(code.trim(), name.trim(), color)}
+            >
+              Join game
+            </button>
+            <button className="btn" onClick={() => setScreen('mode')}>
+              Create a new game instead
             </button>
           </>
         )}
