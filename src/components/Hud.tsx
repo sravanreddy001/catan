@@ -412,24 +412,35 @@ export function OfferComposer({ player, players, onCancel, onPropose }: OfferCom
       <div className="modal__panel">
         <h2 className="modal__title">Propose a trade</h2>
 
-        <div className="offer__grid">
-          <span className="offer__head" />
+        <div className="offer__section">
           <span className="offer__head">You give</span>
+          <div className="offer__grid">
+            {RESOURCES.map((r) => (
+              <Fragment key={r}>
+                <span className="offer__res">
+                  {RESOURCE_ICON[r]}
+                  <small>{player.hand[r]}</small>
+                </span>
+                <Stepper
+                  value={give[r] ?? 0}
+                  max={player.hand[r]}
+                  onChange={(n) => setGive({ ...give, [r]: n })}
+                />
+              </Fragment>
+            ))}
+          </div>
+        </div>
+
+        <div className="offer__section">
           <span className="offer__head">You want</span>
-          {RESOURCES.map((r) => (
-            <Fragment key={r}>
-              <span className="offer__res">
-                {RESOURCE_ICON[r]}
-                <small>{player.hand[r]}</small>
-              </span>
-              <Stepper
-                value={give[r] ?? 0}
-                max={player.hand[r]}
-                onChange={(n) => setGive({ ...give, [r]: n })}
-              />
-              <Stepper value={want[r] ?? 0} onChange={(n) => setWant({ ...want, [r]: n })} />
-            </Fragment>
-          ))}
+          <div className="offer__grid">
+            {RESOURCES.map((r) => (
+              <Fragment key={r}>
+                <span className="offer__res">{RESOURCE_ICON[r]}</span>
+                <Stepper value={want[r] ?? 0} onChange={(n) => setWant({ ...want, [r]: n })} />
+              </Fragment>
+            ))}
+          </div>
         </div>
 
         <div className="offer__to">

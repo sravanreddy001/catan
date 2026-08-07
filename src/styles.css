@@ -337,9 +337,13 @@ body {
   gap: 10px;
 }
 
+.offer__section {
+  margin-bottom: 14px;
+}
+
 .offer__grid {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto;
   gap: 8px 12px;
   align-items: center;
 }
@@ -352,9 +356,11 @@ body {
 }
 
 .offer__head {
+  display: block;
+  margin-bottom: 6px;
   font-size: 11px;
   color: var(--muted);
-  text-align: center;
+  text-align: left;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
