@@ -151,12 +151,12 @@ export default function Board({
             <g key={p.id} className="port">
               <line x1={p.x} y1={p.y} x2={va.x} y2={va.y} stroke="#c8a35b" strokeWidth={3} />
               <line x1={p.x} y1={p.y} x2={vb.x} y2={vb.y} stroke="#c8a35b" strokeWidth={3} />
-              <circle cx={p.x} cy={p.y} r={20} fill="#0e3350" stroke="#c8a35b" strokeWidth={3} />
-              <text className="port__ratio" x={p.x} y={p.y - 3} textAnchor="middle">
+              <circle cx={p.x} cy={p.y} r={24} fill="#0e3350" stroke="#c8a35b" strokeWidth={3.5} />
+              <text className="port__ratio" x={p.x} y={p.y - 4} textAnchor="middle">
                 {p.type === 'any' ? '3:1' : '2:1'}
               </text>
               {p.type !== 'any' && (
-                <text className="port__icon" x={p.x} y={p.y + 12} textAnchor="middle">
+                <text className="port__icon" x={p.x} y={p.y + 14} textAnchor="middle">
                   {TILE_ICON[p.type]}
                 </text>
               )}

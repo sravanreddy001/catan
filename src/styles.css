@@ -145,13 +145,13 @@ body {
 }
 
 .port__ratio {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   fill: #f0d9a0;
 }
 
 .port__icon {
-  font-size: 12px;
+  font-size: 17px;
 }
 
 .tile--target {
