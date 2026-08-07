@@ -252,7 +252,7 @@ export function DevBar({
   return (
     <div className="devbar">
       <button
-        className="swap"
+        className="swap swap--dev"
         disabled={!canAffordDev(player) || deckCount === 0 || busy}
         onClick={onBuy}
         title={`${deckCount} cards left in the deck`}

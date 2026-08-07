@@ -719,6 +719,18 @@ body {
   flex: 0 0 40px;
 }
 
+.swap--dev {
+  background: rgba(154, 130, 219, 0.16);
+  border-color: #9a82db;
+  color: #c3b2f0;
+  font-weight: 700;
+}
+
+.swap--dev:hover:not(:disabled) {
+  background: rgba(154, 130, 219, 0.26);
+  border-color: #9a82db;
+}
+
 .devbar {
   display: flex;
   align-items: center;
