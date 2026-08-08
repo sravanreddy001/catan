@@ -43,13 +43,14 @@ function useEscapeKey(callback?: () => void) {
 /** Display bank resource supply. */
 export function BankSupply({ bank }: { bank: Record<Resource, number> }) {
   return (
-    <div className="hand" style={{ opacity: 0.85, fontSize: '0.85rem' }}>
+    <div className="hand" style={{ opacity: 0.85 }}>
       {RESOURCES.map((r) => (
         <div key={r} className="stack" title={`Bank has ${bank[r]} ${r}`}>
           <div className={`minicard minicard--${r}`}>
-            {RESOURCE_ICON[r]}
+            <span className="minicard__icon">{RESOURCE_ICON[r]}</span>
             <span className="minicard__count">{bank[r]}</span>
           </div>
+          <span className="minicard__label">{r}</span>
         </div>
       ))}
     </div>
@@ -306,9 +307,10 @@ export function HandBar({
         return (
           <div key={r} className="stack" title={`${n} ${r}`}>
             <div className={`minicard minicard--${r}${n === 0 ? ' minicard--empty' : ''}`}>
-              {RESOURCE_ICON[r]}
+              <span className="minicard__icon">{RESOURCE_ICON[r]}</span>
               {n > 0 && <span className="minicard__count">{n}</span>}
             </div>
+            <span className="minicard__label">{r}</span>
             {rates && <span className="card__rate">{rates[r]}:1</span>}
           </div>
         )
