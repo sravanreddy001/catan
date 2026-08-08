@@ -1,0 +1,491 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desktop rail — three arrangements at 1366×768</title>
+<style>
+  :root{
+    --bg:#0b1622; --sea:#123c5c; --panel:#16283a; --panel-2:#101d2b;
+    --line:rgba(255,255,255,.13); --text:#e8eef5; --muted:#8fa3b8;
+    --gold:#f3c969; --teal:#3fb8af; --teal-2:#7fd8d1; --red:#d9534f;
+  }
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+       padding:26px 22px 60px}
+  h1{margin:0 0 6px;font-size:23px;letter-spacing:-.01em}
+  h2{margin:34px 0 4px;font-size:17px}
+  h3{margin:26px 0 6px;font-size:15px;color:var(--gold)}
+  .lede{max-width:78ch;color:var(--muted);margin:0 0 4px}
+  code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-size:12.5px}
+
+  /* Each option is drawn at true 1366×768 and scaled down to fit the page,
+     so every number quoted below is a real measurement, not an estimate. */
+  .shrink{width:100%;overflow:hidden;margin:10px 0 4px}
+  .scaler{width:1366px;height:768px;transform-origin:top left}
+  .vp{width:1366px;height:768px;display:flex;flex-direction:column;
+      background:var(--bg);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+
+  .tag{display:inline-block;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+       color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:3px 11px}
+  .win{color:var(--teal-2);font-weight:700}
+
+  /* ---- chrome ---- */
+  .topbar{flex:none;display:flex;align-items:center;gap:14px;background:var(--panel-2);
+          border-bottom:1px solid var(--line)}
+  .brand{font-weight:800;color:var(--gold);letter-spacing:.06em;font-size:17px}
+  .chip{display:flex;align-items:center;gap:7px;padding:5px 13px;border-radius:999px;
+        background:rgba(255,255,255,.06);border:1px solid transparent;font-size:13px}
+  .chip.me{border-color:var(--red);background:rgba(217,83,79,.14)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .vp-num{color:var(--muted)}
+  .spacer{flex:1}
+  .ghost{padding:5px 13px;border-radius:9px;border:1px solid var(--line);
+         background:rgba(255,255,255,.06);font-size:13px}
+
+  .body{flex:1;min-height:0;display:flex}
+  .stage{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;
+         background:radial-gradient(circle at 50% 38%,#1b5177 0%,var(--sea) 55%,var(--bg) 100%);
+         position:relative}
+  .bd{display:block;height:100%;width:auto}
+
+  .rail{flex:none;background:var(--panel);border-left:1px solid var(--line);
+        display:flex;flex-direction:column;min-height:0}
+  .turnbar{flex:none;display:flex;align-items:center;gap:10px;padding:9px 14px;
+           background:var(--panel-2);border-bottom:1px solid var(--line)}
+  .turnpill{padding:4px 11px;border-radius:999px;background:var(--red);color:#10202c;
+            font-weight:700;font-size:12.5px;white-space:nowrap}
+  .status{color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .cap{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+
+  /* hand */
+  .fan{display:flex;align-items:flex-end}
+  .rescard{position:relative;width:52px;height:64px;border-radius:9px;background:#f2ead9;
+           border:1px solid rgba(0,0,0,.35);box-shadow:-3px 2px 6px rgba(0,0,0,.42);
+           display:flex;align-items:center;justify-content:center;font-size:23px;
+           margin-left:-20px;flex:none}
+  .rescard:first-child{margin-left:0}
+  /* Leftmost on top, so every count badge — which sits bottom-right — stays uncovered. */
+  .rescard:nth-child(1){z-index:5}
+  .rescard:nth-child(2){z-index:4}
+  .rescard:nth-child(3){z-index:3}
+  .rescard:nth-child(4){z-index:2}
+  .rescard:nth-child(5){z-index:1}
+  .rescard.zero{background:rgba(255,255,255,.06);border-style:dashed;box-shadow:none;opacity:.45}
+  .badge{position:absolute;right:-6px;bottom:-6px;min-width:19px;height:19px;border-radius:999px;
+         background:#1a2330;color:#ffd977;border:1.5px solid #ffd977;font-size:11px;font-weight:700;
+         display:flex;align-items:center;justify-content:center}
+  .stackpile{position:relative;width:48px;height:64px;flex:none}
+  .devc{position:absolute;inset:0;border-radius:9px;background:#5b4b9a;border:1px solid #8577c7;
+        display:flex;align-items:center;justify-content:center;font-size:21px}
+  .devc:nth-child(1){transform:translate(-5px,-4px) rotate(-5deg);opacity:.7}
+  .devc:nth-child(2){transform:translate(-2px,-2px) rotate(-2deg);opacity:.85}
+
+  /* buttons */
+  .buildrow{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .bbtn{display:flex;align-items:center;justify-content:space-between;gap:8px;
+        border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.08);
+        padding:10px 12px;min-height:46px;box-sizing:border-box}
+  .bbtn .lb{font-size:13.5px;font-weight:650}
+  .bbtn .ct{font-size:11px;letter-spacing:.4px}
+  .bbtn.off{opacity:.4}
+  .mainrow{display:grid;grid-template-columns:1fr 1.35fr;gap:8px}
+  .mbtn{display:flex;align-items:center;justify-content:center;gap:6px;border-radius:11px;
+        border:1px solid var(--line);background:rgba(255,255,255,.08);font-size:14px;
+        font-weight:700;min-height:46px;box-sizing:border-box}
+  .mbtn.trade{background:rgba(63,184,175,.16);border-color:var(--teal);color:var(--teal-2)}
+  .mbtn.primary{background:var(--gold);color:#1a2330;border-color:transparent}
+  .swaprow{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+  .swap{padding:5px 9px;border-radius:8px;border:1px solid var(--line);
+        background:rgba(255,255,255,.05);font-size:11.5px}
+
+  .notes{margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.65;max-width:80ch}
+  .notes b{color:var(--text)}
+  table{border-collapse:collapse;margin:10px 0;font-size:13px;width:100%;max-width:920px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:rgba(255,255,255,.05);font-weight:650}
+  td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .callout{border-left:3px solid var(--gold);background:rgba(243,201,105,.07);
+           padding:11px 15px;margin:16px 0;max-width:82ch;font-size:13.5px;line-height:1.7}
+  ul{max-width:82ch;padding-left:20px}
+  li{margin:5px 0}
+</style>
+
+<h1>Desktop rail — three arrangements</h1>
+<p class="lede">
+  All three drawn at true 1366&times;768 and scaled to fit this page, so the proportions you see
+  are the proportions you get. Today's build is shown first for comparison.
+</p>
+
+<div class="callout">
+  <b>The constraint is vertical, not horizontal.</b> At 1366&times;768 the board is
+  <em>height</em>-limited: it fills the stage's full 677&nbsp;px of height and stops, leaving
+  227&nbsp;px of the SVG element as empty letterbox at the sides. Narrowing the rail therefore buys
+  nothing at this size — only reclaiming <em>height</em> does. Every option below spends its effort
+  on the vertical axis.
+</div>
+
+<!-- ════════════════ TODAY ════════════════ -->
+<h2><span class="tag">Today</span> &nbsp;716 &times; 677 — 46.2% of the screen</h2>
+<p class="lede">
+  A 51&nbsp;px topbar, 20&nbsp;px of stage padding top and bottom, and a rail whose controls stop
+  339&nbsp;px short of the bottom.
+</p>
+<div class="shrink"><div class="scaler"><div class="vp">
+  <div class="topbar" style="padding:11px 16px;height:51px;box-sizing:border-box">
+    <span class="brand">CATAN</span>
+    <span class="chip me"><i class="dot" style="background:var(--red)"></i>You <b class="vp-num">4/10</b></span>
+    <span class="chip"><i class="dot" style="background:#4a7fd4"></i>Bot 1 <b class="vp-num">3/10</b></span>
+    <span class="chip"><i class="dot" style="background:#e08c34"></i>Bot 2 <b class="vp-num">5/10</b></span>
+    <span class="chip"><i class="dot" style="background:#eee"></i>Bot 3 <b class="vp-num">2/10</b></span>
+    <span class="spacer"></span><span class="ghost">?</span><span class="ghost">New game</span>
+  </div>
+  <div class="body">
+    <div class="stage" style="padding:20px"><svg class="bd" data-board></svg></div>
+    <div class="rail" style="width:380px">
+      <div class="turnbar"><span class="turnpill">Your turn</span><span class="status">Rolled 9 — you got +2 grain.</span></div>
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:12px">
+        <div><div class="cap">Your hand</div><div class="fan">
+          <div class="rescard">🧱<span class="badge">1</span></div>
+          <div class="rescard zero">🌲<span class="badge">0</span></div>
+          <div class="rescard">🐑<span class="badge">2</span></div>
+          <div class="rescard">🌾<span class="badge">3</span></div>
+          <div class="rescard zero">⛰️<span class="badge">0</span></div>
+        </div></div>
+        <div class="swaprow">Trade:
+          <span class="swap">🧱 4:1</span><span class="swap">🌲 4:1</span>
+          <span class="swap">🐑 4:1</span><span class="swap">🌾 4:1</span><span class="swap">⛰️ 4:1</span>
+        </div>
+        <div class="buildrow" style="grid-template-columns:1fr">
+          <div class="bbtn"><span class="lb">Road</span><span class="ct">🧱🌲</span></div>
+          <div class="bbtn"><span class="lb">Settlement</span><span class="ct">🧱🌲🐑🌾</span></div>
+          <div class="bbtn off"><span class="lb">City</span><span class="ct">🌾🌾⛰️⛰️⛰️</span></div>
+          <div class="bbtn"><span class="lb">Buy</span><span class="ct">🐑🌾⛰️</span></div>
+        </div>
+        <div class="mainrow"><div class="mbtn trade">Trade</div><div class="mbtn primary">End turn</div></div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<p class="notes"><b>339 px of the rail is empty</b>, all of it below the turn button — so the primary
+action floats at whatever height the dev-card list happens to end at.</p>
+
+<!-- ════════════════ A ════════════════ -->
+<h2><span class="tag">Option A</span> &nbsp;Tight frame &nbsp;—&nbsp; <span class="win">753 &times; 712 — 51.1%</span></h2>
+<p class="lede">
+  The smallest possible change. Topbar 51&nbsp;px&nbsp;&rarr;&nbsp;44, stage padding
+  20&nbsp;px&nbsp;&rarr;&nbsp;6, and <code>.board-frame</code> sized to the painted box so the
+  227&nbsp;px letterbox disappears. The rail and its contents are untouched.
+</p>
+<div class="shrink"><div class="scaler"><div class="vp">
+  <div class="topbar" style="padding:8px 16px;height:44px;box-sizing:border-box">
+    <span class="brand">CATAN</span>
+    <span class="chip me"><i class="dot" style="background:var(--red)"></i>You <b class="vp-num">4/10</b></span>
+    <span class="chip"><i class="dot" style="background:#4a7fd4"></i>Bot 1 <b class="vp-num">3/10</b></span>
+    <span class="chip"><i class="dot" style="background:#e08c34"></i>Bot 2 <b class="vp-num">5/10</b></span>
+    <span class="chip"><i class="dot" style="background:#eee"></i>Bot 3 <b class="vp-num">2/10</b></span>
+    <span class="spacer"></span><span class="ghost">?</span><span class="ghost">New game</span>
+  </div>
+  <div class="body">
+    <div class="stage" style="padding:6px"><svg class="bd" data-board></svg></div>
+    <div class="rail" style="width:380px">
+      <div class="turnbar"><span class="turnpill">Your turn</span><span class="status">Rolled 9 — you got +2 grain.</span></div>
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:12px">
+        <div><div class="cap">Your hand</div><div class="fan">
+          <div class="rescard">🧱<span class="badge">1</span></div>
+          <div class="rescard zero">🌲<span class="badge">0</span></div>
+          <div class="rescard">🐑<span class="badge">2</span></div>
+          <div class="rescard">🌾<span class="badge">3</span></div>
+          <div class="rescard zero">⛰️<span class="badge">0</span></div>
+        </div></div>
+        <div class="swaprow">Trade:
+          <span class="swap">🧱 4:1</span><span class="swap">🌲 4:1</span>
+          <span class="swap">🐑 4:1</span><span class="swap">🌾 4:1</span><span class="swap">⛰️ 4:1</span>
+        </div>
+        <div class="buildrow" style="grid-template-columns:1fr">
+          <div class="bbtn"><span class="lb">Road</span><span class="ct">🧱🌲</span></div>
+          <div class="bbtn"><span class="lb">Settlement</span><span class="ct">🧱🌲🐑🌾</span></div>
+          <div class="bbtn off"><span class="lb">City</span><span class="ct">🌾🌾⛰️⛰️⛰️</span></div>
+          <div class="bbtn"><span class="lb">Buy</span><span class="ct">🐑🌾⛰️</span></div>
+        </div>
+        <div class="mainrow"><div class="mbtn trade">Trade</div><div class="mbtn primary">End turn</div></div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<p class="notes"><b>+5% linear, +11% area</b> for two padding values and one sizing fix. The rail's dead space
+is still there — this option does not address it.</p>
+
+<!-- ════════════════ B ════════════════ -->
+<h2><span class="tag">Option B</span> &nbsp;Pinned turn footer &nbsp;—&nbsp; <span class="win">753 &times; 712 — 51.1%</span></h2>
+<p class="lede">
+  Option A's board, plus the rail becomes three vertical regions: holdings pinned to the top, a
+  flexible middle that absorbs all the slack, and Trade + the turn button pinned to the bottom.
+  The same fixed-slot rule as the phone dock, applied vertically.
+</p>
+<div class="shrink"><div class="scaler"><div class="vp">
+  <div class="topbar" style="padding:8px 16px;height:44px;box-sizing:border-box">
+    <span class="brand">CATAN</span>
+    <span class="chip me"><i class="dot" style="background:var(--red)"></i>You <b class="vp-num">4/10</b></span>
+    <span class="chip"><i class="dot" style="background:#4a7fd4"></i>Bot 1 <b class="vp-num">3/10</b></span>
+    <span class="chip"><i class="dot" style="background:#e08c34"></i>Bot 2 <b class="vp-num">5/10</b></span>
+    <span class="chip"><i class="dot" style="background:#eee"></i>Bot 3 <b class="vp-num">2/10</b></span>
+    <span class="spacer"></span><span class="ghost">?</span><span class="ghost">New game</span>
+  </div>
+  <div class="body">
+    <div class="stage" style="padding:6px"><svg class="bd" data-board></svg></div>
+    <div class="rail" style="width:380px">
+      <div class="turnbar"><span class="turnpill">Your turn</span><span class="status">Rolled 9 — you got +2 grain.</span></div>
+
+      <!-- top: what you hold -->
+      <div style="padding:12px 14px 10px;border-bottom:1px solid var(--line)">
+        <div class="cap">Your hand</div>
+        <div style="display:flex;align-items:flex-end;gap:14px">
+          <div class="fan">
+            <div class="rescard">🧱<span class="badge">1</span></div>
+            <div class="rescard zero">🌲<span class="badge">0</span></div>
+            <div class="rescard">🐑<span class="badge">2</span></div>
+            <div class="rescard">🌾<span class="badge">3</span></div>
+            <div class="rescard zero">⛰️<span class="badge">0</span></div>
+          </div>
+          <div class="stackpile"><div class="devc">🃏</div><div class="devc">🃏</div>
+            <div class="devc">🃏<span class="badge">2</span></div></div>
+        </div>
+      </div>
+
+      <!-- middle: absorbs every pixel of slack -->
+      <div style="flex:1;min-height:0;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px">
+        <div class="swaprow">Trade:
+          <span class="swap">🧱 4:1</span><span class="swap">🌲 4:1</span>
+          <span class="swap">🐑 4:1</span><span class="swap">🌾 4:1</span><span class="swap">⛰️ 4:1</span>
+        </div>
+        <div><div class="cap">Build</div>
+          <div class="buildrow">
+            <div class="bbtn"><span class="lb">Road</span><span class="ct">🧱🌲</span></div>
+            <div class="bbtn"><span class="lb">Settle</span><span class="ct">🧱🌲🐑🌾</span></div>
+            <div class="bbtn off"><span class="lb">City</span><span class="ct">🌾🌾⛰️⛰️</span></div>
+            <div class="bbtn"><span class="lb">Buy</span><span class="ct">🐑🌾⛰️</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- bottom: constant screen position, always -->
+      <div style="flex:none;padding:12px 14px;border-top:1px solid var(--line);background:var(--panel-2)">
+        <div class="mainrow"><div class="mbtn trade">Trade</div><div class="mbtn primary">End turn</div></div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<p class="notes">The turn button now sits at a <b>constant screen position</b> no matter how many dev
+cards you hold — the slack lands in the middle region, which is the only part allowed to move.</p>
+
+<!-- ════════════════ C ════════════════ -->
+<h2><span class="tag">Option C</span> &nbsp;Topbar into the rail &nbsp;—&nbsp; <span class="win">800 &times; 756 — 57.7%</span></h2>
+<p class="lede">
+  Option B, plus the topbar is dissolved: the player chips move into the head of the rail, where
+  there is width to spare and 339&nbsp;px of unused height. The stage then owns the full 768&nbsp;px.
+</p>
+<div class="shrink"><div class="scaler"><div class="vp">
+  <div class="body">
+    <div class="stage" style="padding:6px"><svg class="bd" data-board></svg></div>
+    <div class="rail" style="width:380px">
+      <div style="flex:none;padding:11px 14px;background:var(--panel-2);border-bottom:1px solid var(--line)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+          <span class="brand">CATAN</span><span class="spacer"></span>
+          <span class="ghost">?</span><span class="ghost">New game</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <span class="chip me"><i class="dot" style="background:var(--red)"></i>You <b class="vp-num">4/10</b></span>
+          <span class="chip"><i class="dot" style="background:#4a7fd4"></i>Bot 1 <b class="vp-num">3/10</b></span>
+          <span class="chip"><i class="dot" style="background:#e08c34"></i>Bot 2 <b class="vp-num">5/10</b></span>
+          <span class="chip"><i class="dot" style="background:#eee"></i>Bot 3 <b class="vp-num">2/10</b></span>
+        </div>
+      </div>
+      <div class="turnbar"><span class="turnpill">Your turn</span><span class="status">Rolled 9 — you got +2 grain.</span></div>
+
+      <div style="padding:12px 14px 10px;border-bottom:1px solid var(--line)">
+        <div class="cap">Your hand</div>
+        <div style="display:flex;align-items:flex-end;gap:14px">
+          <div class="fan">
+            <div class="rescard">🧱<span class="badge">1</span></div>
+            <div class="rescard zero">🌲<span class="badge">0</span></div>
+            <div class="rescard">🐑<span class="badge">2</span></div>
+            <div class="rescard">🌾<span class="badge">3</span></div>
+            <div class="rescard zero">⛰️<span class="badge">0</span></div>
+          </div>
+          <div class="stackpile"><div class="devc">🃏</div><div class="devc">🃏</div>
+            <div class="devc">🃏<span class="badge">2</span></div></div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px">
+        <div class="swaprow">Trade:
+          <span class="swap">🧱 4:1</span><span class="swap">🌲 4:1</span>
+          <span class="swap">🐑 4:1</span><span class="swap">🌾 4:1</span><span class="swap">⛰️ 4:1</span>
+        </div>
+        <div><div class="cap">Build</div>
+          <div class="buildrow">
+            <div class="bbtn"><span class="lb">Road</span><span class="ct">🧱🌲</span></div>
+            <div class="bbtn"><span class="lb">Settle</span><span class="ct">🧱🌲🐑🌾</span></div>
+            <div class="bbtn off"><span class="lb">City</span><span class="ct">🌾🌾⛰️⛰️</span></div>
+            <div class="bbtn"><span class="lb">Buy</span><span class="ct">🐑🌾⛰️</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:none;padding:12px 14px;border-top:1px solid var(--line);background:var(--panel-2)">
+        <div class="mainrow"><div class="mbtn trade">Trade</div><div class="mbtn primary">End turn</div></div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<p class="notes"><b>+12% linear, +25% area over today</b>, and the largest board of the three. The cost is that
+the brand and the player chips lose their full-width row — four chips in a 2&times;2 grid inside a
+380&nbsp;px rail, rather than four spread across 1366&nbsp;px.</p>
+
+<h3>Side by side</h3>
+<table>
+  <tr><th>Option</th><th>Board painted</th><th>% of 1366&times;768</th><th>Linear</th><th>Area</th><th>What it costs</th></tr>
+  <tr><td>Today</td><td class="num">716 × 677</td><td class="num">46.2%</td><td class="num">—</td><td class="num">—</td><td>—</td></tr>
+  <tr><td>A — tight frame</td><td class="num">753 × 712</td><td class="num">51.1%</td><td class="num">+5%</td><td class="num">+11%</td><td>Nothing. Two padding values and a sizing fix.</td></tr>
+  <tr><td>B — pinned footer</td><td class="num">753 × 712</td><td class="num">51.1%</td><td class="num">+5%</td><td class="num">+11%</td><td>Rail becomes a 3-region grid; the middle scrolls when cards pile up.</td></tr>
+  <tr><td>C — topbar into rail</td><td class="num">800 × 756</td><td class="num">57.7%</td><td class="num">+12%</td><td class="num">+25%</td><td>Player chips drop to a 2×2 grid in a 380 px rail.</td></tr>
+</table>
+
+<h3>Where today's pixels actually go</h3>
+<ul>
+  <li><b>227 px of letterbox.</b> <code>.board-frame</code> carries an
+    <code>aspect-ratio</code> of the board's bounds but also
+    <code>max-width: min(100%, 900px)</code>, and the max-width wins — so the element is 946&nbsp;px
+    wide while the board inside paints only 719. Overlays anchored to the frame (the dice) end up
+    against empty sea rather than the board's corner.</li>
+  <li><b>91 px of chrome and padding.</b> A 51&nbsp;px topbar plus 20&nbsp;px of stage padding top
+    and bottom. Because the board is height-limited, each of those pixels comes straight off the
+    board — and off the number tokens with it, since the board is an SVG with a viewBox.</li>
+  <li><b>339 px of empty rail</b>, all below the turn button.</li>
+</ul>
+
+<h3>Two fixes to fold into whichever option wins</h3>
+<ul>
+  <li><b><code>player={current}</code> &rarr; <code>viewed</code></b> on TradeBar and ActionBar. The
+    rail currently renders against whoever's turn it is, so during a bot's 700&nbsp;ms tick it
+    re-renders against the bot's hand. That is the blinking — and the affordability states leak what
+    the bot is holding.</li>
+  <li><b>The bank supply row is clipped</b> — its last button ends at x=1426 on a 1366&nbsp;px
+    screen. It is reference data rather than a per-turn input, so it belongs behind the existing
+    <code>?</code> guide.</li>
+</ul>
+
+<h3>Open questions</h3>
+<ul>
+  <li>Option C removes the full-width topbar. If four chips in a 2×2 grid reads as cramped, B is the
+    safe stopping point at +5% linear.</li>
+  <li>The rail stays 380&nbsp;px in all three. It could narrow to ~320&nbsp;px, but at 1366×768 that
+    adds nothing — the board is height-limited. It only helps on narrow, tall windows.</li>
+</ul>
+
+<script>
+  // One board, drawn into each frame. The viewBox is computed from the painted
+  // bounding box plus a 3% frame — the same rule the app now uses — so the sea
+  // margin shown here is the real one rather than a guess.
+  const NS = 'http://www.w3.org/2000/svg'
+  const LAYOUT = [3, 4, 5, 4, 3], R = 38, DX = Math.sqrt(3) * R, DY = 1.5 * R
+  const FILL = { l: '#3f7d4a', b: '#a4543a', w: '#7fae54', g: '#d8b451', o: '#7d8b99', d: '#d8c9a6' }
+  const TILES = [
+    ['o', '⛰️', 10], ['b', '🧱', 2], ['w', '🐑', 9],
+    ['g', '🌾', 12], ['l', '🌲', 6], ['d', '', null], ['w', '🐑', 10],
+    ['g', '🌾', 9], ['o', '⛰️', 11], ['b', '🧱', 4], ['w', '🐑', 3], ['g', '🌾', 8],
+    ['l', '🌲', 8], ['g', '🌾', 3], ['b', '🧱', 4], ['w', '🐑', 5],
+    ['o', '⛰️', 5], ['g', '🌾', 6], ['l', '🌲', 11],
+  ]
+
+  function hexPath(cx, cy) {
+    let d = ''
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 180 * (60 * i - 90)
+      d += (i ? 'L' : 'M') + (cx + R * Math.cos(a)).toFixed(2) + ',' + (cy + R * Math.sin(a)).toFixed(2)
+    }
+    return d + 'Z'
+  }
+
+  function add(svg, tag, attrs, text) {
+    const el = document.createElementNS(NS, tag)
+    for (const k in attrs) el.setAttribute(k, attrs[k])
+    if (text !== undefined) el.textContent = text
+    svg.appendChild(el)
+    return el
+  }
+
+  function drawBoard(svg) {
+    const centres = []
+    let n = 0
+    LAYOUT.forEach((count, row) => {
+      const y = 60 + row * DY
+      const x0 = 200 - (count - 1) * DX / 2
+      for (let i = 0; i < count; i++) centres.push([x0 + i * DX, y, n++])
+    })
+
+    centres.forEach(([cx, cy, i]) => {
+      const [kind, icon, num] = TILES[i]
+      add(svg, 'path', { d: hexPath(cx, cy), fill: FILL[kind], stroke: 'rgba(0,0,0,.35)' })
+      if (icon) {
+        add(svg, 'text', { x: cx, y: cy - 12, 'text-anchor': 'middle', 'font-size': 20 }, icon)
+      }
+      if (num) {
+        const hot = num === 6 || num === 8
+        add(svg, 'circle', {
+          cx, cy: cy + 10, r: 17, fill: '#f5eeda',
+          stroke: hot ? '#c0392b' : 'rgba(0,0,0,.3)', 'stroke-width': hot ? 2.5 : 1,
+        })
+        add(svg, 'text', {
+          x: cx, y: cy + 17, 'text-anchor': 'middle', 'font-size': 20,
+          'font-weight': 700, fill: hot ? '#c0392b' : '#1a2330',
+        }, num)
+        const pips = 6 - Math.abs(7 - num)
+        for (let k = 0; k < pips; k++) {
+          add(svg, 'circle', {
+            cx: cx + (k - (pips - 1) / 2) * 5, cy: cy + 23, r: 1.6,
+            fill: hot ? '#c0392b' : '#1a2330',
+          })
+        }
+      }
+    })
+
+    // Harbours — the outermost thing painted, and therefore what the frame has
+    // to be measured from.
+    const cx0 = 200, cy0 = 60 + 2 * DY
+    for (let k = 0; k < 9; k++) {
+      const a = Math.PI * 2 * k / 9 - Math.PI / 2
+      const px = cx0 + Math.cos(a) * 218, py = cy0 + Math.sin(a) * 208
+      add(svg, 'circle', { cx: px, cy: py, r: 20, fill: '#0e3350', stroke: '#c8a35b', 'stroke-width': 2.5 })
+      add(svg, 'text', {
+        x: px, y: py + 5, 'text-anchor': 'middle', 'font-size': 13,
+        fill: '#e8d9b0', 'font-weight': 700,
+      }, k % 3 === 0 ? '2:1' : '3:1')
+    }
+  }
+
+  document.querySelectorAll('svg[data-board]').forEach((svg) => {
+    drawBoard(svg)
+    const b = svg.getBBox()
+    const m = 0.03
+    svg.setAttribute('viewBox', [
+      b.x - b.width * m, b.y - b.height * m,
+      b.width * (1 + m * 2), b.height * (1 + m * 2),
+    ].map((v) => v.toFixed(1)).join(' '))
+  })
+
+  // Scale each true-size 1366×768 frame down to whatever width the page has.
+  function fit() {
+    document.querySelectorAll('.scaler').forEach((el) => {
+      // Fall back to the viewport if the container has not been laid out yet —
+      // a width of 0 would otherwise scale every frame out of existence.
+      const avail = el.parentElement.clientWidth || document.body.clientWidth || innerWidth
+      const k = Math.min(1, avail / 1366)
+      el.style.transform = 'scale(' + k + ')'
+      el.parentElement.style.height = (768 * k) + 'px'
+    })
+  }
+  fit()
+  requestAnimationFrame(fit)
+  addEventListener('load', fit)
+  addEventListener('resize', fit)
+</script>
