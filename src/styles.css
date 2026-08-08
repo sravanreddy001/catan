@@ -1632,6 +1632,14 @@ body {
     overflow: visible;
   }
 
+  /* The ⚔️ / 🛣️ badges are 2px taller than the digits beside them, so the chip
+     that holds one bulges out of the row and shifts 1px up. A floor on the
+     height keeps the row flat whoever is holding the bonus. */
+  .strip .chip {
+    min-height: 26px;
+    align-items: center;
+  }
+
   /*
    * A 210px tooltip centred on a quarter-width chip hangs past the viewport at
    * both ends, which gives the page a sideways scroll even while the tooltip is
