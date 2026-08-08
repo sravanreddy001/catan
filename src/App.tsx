@@ -21,6 +21,7 @@ import {
 import {
   createGame,
   currentPlayerId,
+  defaultSettings,
   edgeTargets as edgeTargetsOf,
   longestRoadHolder,
   ratesFor,
@@ -219,7 +220,7 @@ export default function App() {
           names: lobby.names,
           colors: lobby.colors,
           status: `${lobby.names.length} of 4 seats filled.`,
-          settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard', santaMode: false },
+          settings: defaultSettings(),
         })),
       onAction: (action, fromSeat) =>
         setState((prev) => {
@@ -238,7 +239,7 @@ export default function App() {
       names: [name],
       colors: [color],
       status: 'Share the code or link, then start when everyone is in.',
-      settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard', santaMode: false },
+      settings: defaultSettings(),
     })
   }
 
@@ -253,7 +254,7 @@ export default function App() {
           names: lobby.names,
           colors: lobby.colors,
           status: `Joined as ${name}.`,
-          settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard', santaMode: false },
+          settings: defaultSettings(),
         })
       },
       onState: (s) => {
@@ -262,7 +263,7 @@ export default function App() {
       },
       onError: (msg) => setStage((s) => (s.kind === 'waiting' ? { ...s, status: msg } : s)),
     })
-    setStage({ kind: 'waiting', isHost: false, code, names: [], colors: [], status: 'Connecting…', settings: { publicHands: false, vpTarget: 10, bankPreset: 'standard', santaMode: false } })
+    setStage({ kind: 'waiting', isHost: false, code, names: [], colors: [], status: 'Connecting…', settings: defaultSettings() })
   }
 
   function hostStart(settings?: Partial<GameSettings>) {

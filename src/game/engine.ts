@@ -43,6 +43,8 @@ export interface GameSettings {
   bankPreset: 'standard' | 'scarce' | 'veryScarce'
   /** Santa mode: rolling a 7 or playing a Knight grants a free resource instead of placing a robber. */
   santaMode: boolean
+  /** Speed mode: opening placements are auto-placed and each turn rolls dice twice. */
+  speedMode: boolean
 }
 
 export function defaultSettings(): GameSettings {
@@ -51,6 +53,7 @@ export function defaultSettings(): GameSettings {
     vpTarget: 10,
     bankPreset: 'standard',
     santaMode: false,
+    speedMode: false,
   }
 }
 
@@ -84,6 +87,8 @@ export interface GameState {
   mode: Mode
   dice: [number, number] | null
   hasRolled: boolean
+  /** Rolls taken so far this turn — 1 normally, up to 2 in speed mode. */
+  rollCount: number
   robberTile: string
   message: string
   offer: TradeOffer | null
@@ -147,7 +152,7 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
   const order = shuffledOrder(playerCount)
   const finalSettings = { ...defaultSettings(), ...settings }
   const bankPerResource = BANK_PRESET_VALUES[finalSettings.bankPreset]
-  return {
+  const state: GameState = {
     board,
     players,
     bank: {
@@ -165,6 +170,7 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     mode: null,
     dice: null,
     hasRolled: false,
+    rollCount: 0,
     robberTile: board.tiles.find((t) => t.type === 'desert')?.id ?? board.tiles[0].id,
     message: `${players[order[0]].name}: place your first settlement.`,
     offer: null,
@@ -177,6 +183,73 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     order,
     settings: finalSettings,
   }
+  return finalSettings.speedMode ? autoSetup(state) : state
+}
+
+/** Ways to roll each number: 6 and 8 are the best, 2 and 12 the worst. */
+function pipsFor(n: number | undefined): number {
+  return n === undefined ? 0 : 6 - Math.abs(7 - n)
+}
+
+/**
+ * Corner quality for automated speed-mode placement: total pips, plus a bonus
+ * for touching resources the player doesn't already have. A trimmed copy of
+ * ai.ts's vertexScore — kept local rather than imported to avoid a cycle
+ * (ai.ts already imports from this module).
+ */
+function autoVertexScore(state: GameState, vertexId: string, player: Player): number {
+  const tileIds = state.board.vertexTiles[vertexId] ?? []
+  const tiles = tileIds.map((tid) => state.board.tiles.find((t) => t.id === tid)!)
+  const owned = new Set<Resource>()
+  for (const v of [...player.settlements, ...player.cities]) {
+    for (const tid of state.board.vertexTiles[v] ?? []) {
+      const t = state.board.tiles.find((x) => x.id === tid)!
+      if (t.type !== 'desert') owned.add(t.type as Resource)
+    }
+  }
+  let score = 0
+  for (const t of tiles) {
+    if (t.type === 'desert') continue
+    score += pipsFor(t.number)
+    if (!owned.has(t.type as Resource)) score += 2.5
+    if (t.type === 'brick' || t.type === 'lumber') score += 0.75
+  }
+  return score
+}
+
+function bestOf<T>(items: T[], score: (item: T) => number): T {
+  let bestItem = items[0]
+  let bestScore = -Infinity
+  for (const item of items) {
+    const s = score(item)
+    if (s > bestScore) {
+      bestScore = s
+      bestItem = item
+    }
+  }
+  return bestItem
+}
+
+/** Speed mode: run the entire setup phase automatically, snake order preserved. */
+function autoSetup(state: GameState): GameState {
+  let s = state
+  while (s.phase === 'setup') {
+    const current = s.players[currentPlayerId(s)]
+    if (s.pendingRoadFrom) {
+      const edges = [...edgeTargets(s)]
+      const pickEdge = bestOf(edges, (eid) => {
+        const e = s.board.edges.find((x) => x.id === eid)!
+        const far = e.a === s.pendingRoadFrom ? e.b : e.a
+        return autoVertexScore(s, far, current)
+      })
+      s = reduce(s, { type: 'edge', id: pickEdge })
+    } else {
+      const spots = [...vertexTargets(s)]
+      const pickVertex = bestOf(spots, (v) => autoVertexScore(s, v, current))
+      s = reduce(s, { type: 'vertex', id: pickVertex })
+    }
+  }
+  return s
 }
 
 function occupiedVertices(players: Player[]): Set<string> {
@@ -542,10 +615,15 @@ function step(state: GameState, action: Action): GameState {
     }
 
     case 'roll': {
-      if (state.hasRolled || state.phase !== 'play') return state
+      if (state.hasRolled || state.phase !== 'play' || state.mode === 'robber' || state.picking !== null) {
+        return state
+      }
+      const rollsNeeded = state.settings.speedMode ? 2 : 1
+      const rollCount = (state.rollCount ?? 0) + 1
+      const finished = rollCount >= rollsNeeded
       const a = 1 + Math.floor(Math.random() * 6)
       const b = 1 + Math.floor(Math.random() * 6)
-      const rolled: GameState = { ...state, dice: [a, b], hasRolled: true, mode: null }
+      const rolled: GameState = { ...state, dice: [a, b], rollCount, hasRolled: finished, mode: null }
       if (a + b === 7) {
         const owed = owedDiscards(rolled.players)
         const pending = Object.keys(owed).length > 0
@@ -787,6 +865,7 @@ function step(state: GameState, action: Action): GameState {
         mode: null,
         dice: null,
         hasRolled: false,
+        rollCount: 0,
         offer: null,
         message: `${state.players[nextId].name} to roll.`,
       }

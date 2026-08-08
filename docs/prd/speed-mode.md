@@ -1,6 +1,6 @@
 ---
 feature: speed-mode
-status: approved
+status: shipped
 ux-required: true
 date: 2026-08-07
 ---

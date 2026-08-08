@@ -59,6 +59,7 @@ export default function Lobby({
   const [publicHands, setPublicHands] = useState(false)
   const [bankPreset, setBankPreset] = useState<'standard' | 'scarce' | 'veryScarce'>('standard')
   const [santaMode, setSantaMode] = useState(false)
+  const [speedMode, setSpeedMode] = useState(false)
   const [botPresets, setBotPresets] = useState<Record<number, AIPreset>>({})
   const presetLabels: Record<string, string> = {
     aggressive: 'Aggressive (targets leader, plays hard)',
@@ -138,6 +139,15 @@ export default function Lobby({
                   onChange={(e) => setSantaMode(e.target.checked)}
                 />
                 Santa mode (friendly variant, no robber)
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+                <input
+                  type="checkbox"
+                  checked={speedMode}
+                  onChange={(e) => setSpeedMode(e.target.checked)}
+                />
+                Speed mode (auto-placed setup, 2 rolls per turn)
               </label>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
@@ -224,7 +234,7 @@ export default function Lobby({
               )
             })}
 
-            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget, bankPreset, santaMode }, botPresets)}>
+            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget, bankPreset, santaMode, speedMode }, botPresets)}>
               Start
             </button>
             <button className="btn" onClick={() => setScreen('offline-color')}>
@@ -320,6 +330,7 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
   const [publicHands, setPublicHands] = useState(settings.publicHands)
   const [bankPreset, setBankPreset] = useState(settings.bankPreset)
   const [santaMode, setSantaMode] = useState(settings.santaMode)
+  const [speedMode, setSpeedMode] = useState(settings.speedMode)
 
   async function copy(what: 'code' | 'link') {
     try {
@@ -383,6 +394,15 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
             </label>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+              <input
+                type="checkbox"
+                checked={speedMode}
+                onChange={(e) => setSpeedMode(e.target.checked)}
+              />
+              Speed mode (auto-placed setup, 2 rolls per turn)
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
               <span>VP target:</span>
               <select
                 value={vpTarget}
@@ -418,7 +438,7 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
         )}
 
         {isHost ? (
-          <button className="btn btn--primary" disabled={names.length < 2} onClick={() => onStart({ publicHands, vpTarget, bankPreset, santaMode })}>
+          <button className="btn btn--primary" disabled={names.length < 2} onClick={() => onStart({ publicHands, vpTarget, bankPreset, santaMode, speedMode })}>
             {names.length < 2 ? 'Waiting for players…' : `Start with ${names.length}`}
           </button>
         ) : (

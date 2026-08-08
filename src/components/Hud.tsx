@@ -106,7 +106,12 @@ export function PlayerStrip({
 /** Settings indicator chip showing active non-default settings. */
 export function SettingsChip({ settings, botPresets = {} }: { settings: GameSettings; botPresets?: Record<number, AIPreset> }) {
   const [expanded, setExpanded] = useState(false)
-  const hasNonDefaultSettings = settings.publicHands || settings.vpTarget !== 10 || settings.bankPreset !== 'standard' || settings.santaMode
+  const hasNonDefaultSettings =
+    settings.publicHands ||
+    settings.vpTarget !== 10 ||
+    settings.bankPreset !== 'standard' ||
+    settings.santaMode ||
+    settings.speedMode
   const hasActiveBotPresets = Object.values(botPresets).some((p) => p !== null)
   const hasNonDefault = hasNonDefaultSettings || hasActiveBotPresets
 
@@ -137,6 +142,7 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
         {settings.vpTarget !== 10 && <span title={`VP target: ${settings.vpTarget}`}>🎯</span>}
         {settings.bankPreset !== 'standard' && <span title={`Bank: ${bankPresetLabel[settings.bankPreset]}`}>🏦</span>}
         {settings.santaMode && <span title="Santa mode">🎅</span>}
+        {settings.speedMode && <span title="Speed mode">⚡</span>}
         {hasActiveBotPresets && Object.entries(botPresets).map(([seat, preset]) => {
           if (!preset) return null
           return <span key={seat} title={`Bot ${seat}: ${preset}`}>{presetEmojis[preset]}</span>
@@ -152,6 +158,7 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
               {settings.vpTarget !== 10 && <div>✓ VP target: {settings.vpTarget} points to win</div>}
               {settings.bankPreset !== 'standard' && <div>✓ Bank preset: {bankPresetLabel[settings.bankPreset]}</div>}
               {settings.santaMode && <div>✓ Santa mode: friendly variant (no robber)</div>}
+              {settings.speedMode && <div>✓ Speed mode: auto-placed setup, 2 rolls per turn</div>}
               {hasActiveBotPresets && (
                 <>
                   <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
