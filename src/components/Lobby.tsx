@@ -81,22 +81,30 @@ export default function Lobby({
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="lobby-dialog-title">
       <div className="modal__panel">
         {screen === 'mode' && (
-          <>
+          <div className="lobby__mode-selection">
             <h2 id="lobby-dialog-title" className="modal__title">Catan</h2>
-            <button className="lobby__count" onClick={() => setScreen('offline')}>
-              Play offline
-              <small>you against AI opponents</small>
-            </button>
-            <button className="lobby__count" onClick={() => setScreen('online')}>
-              Play online
-              <small>share a code, everyone on their own phone</small>
-            </button>
-            {resumable && (
-              <button className="btn btn--primary" onClick={onResume} style={{ marginTop: '0.5rem' }}>
-                Resume saved game
+            <div className="lobby__mode-buttons">
+              <button className="lobby__mode-card" onClick={() => setScreen('offline')}>
+                <span className="lobby__mode-icon">🤖</span>
+                <div className="lobby__mode-text">
+                  <span className="lobby__mode-title">Play offline</span>
+                  <span className="lobby__mode-desc">You against AI opponents</span>
+                </div>
               </button>
-            )}
-          </>
+              <button className="lobby__mode-card" onClick={() => setScreen('online')}>
+                <span className="lobby__mode-icon">🌐</span>
+                <div className="lobby__mode-text">
+                  <span className="lobby__mode-title">Play online</span>
+                  <span className="lobby__mode-desc">Share a code, everyone on their own phone</span>
+                </div>
+              </button>
+              {resumable && (
+                <button className="btn btn--primary lobby__resume-btn" onClick={onResume}>
+                  Resume saved game
+                </button>
+              )}
+            </div>
+          </div>
         )}
 
         {screen === 'offline' && (
