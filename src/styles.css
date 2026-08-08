@@ -1155,78 +1155,109 @@ body {
 
 /* ---------- lobby & forms ---------- */
 
-.lobby__mode-selection {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/*
+ * Mode is a two-way toggle, not a screen: offline and online each fit in one
+ * panel, so switching costs nothing and nobody has to back out of a branch.
+ */
+.lobby__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
   width: 100%;
-}
-
-.lobby__mode-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  margin-top: 4px;
-}
-
-.lobby__mode-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 14px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--text);
+}
+
+.lobby__tab {
+  padding: 10px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
   font: inherit;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  text-align: left;
-  transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
-.lobby__mode-card:hover {
-  background: #f3c969;
-  color: #1a2330;
+.lobby__tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.lobby__tab--on {
+  background: rgba(243, 201, 105, 0.18);
   border-color: #f3c969;
-  box-shadow: 0 6px 20px rgba(243, 201, 105, 0.25);
-  transform: translateY(-2px);
+  color: var(--text);
 }
 
-.lobby__mode-card:hover .lobby__mode-desc {
-  color: #2c3b4e;
-}
-
-.lobby__mode-card:active {
-  transform: translateY(0) scale(0.98);
-}
-
-.lobby__mode-icon {
-  font-size: 28px;
-  flex-shrink: 0;
-}
-
-.lobby__mode-text {
+.lobby__field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-}
-
-.lobby__mode-title {
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.lobby__mode-desc {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.lobby__resume-btn {
+  gap: 8px;
   width: 100%;
-  min-height: 48px;
-  font-size: 15px;
-  margin-top: 4px;
+}
+
+.lobby__field-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+/*
+ * Collapsed by default: a normal game needs none of it. Open, it is the only
+ * part of the panel that flexes — so the settings scroll inside their own box
+ * and the start button never gets pushed off the bottom of the screen.
+ */
+.lobby__advanced {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lobby__advanced-summary {
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lobby__advanced-summary::-webkit-details-marker {
+  display: none;
+}
+
+.lobby__advanced-summary::before {
+  content: '▸';
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.lobby__advanced[open] .lobby__advanced-summary::before {
+  transform: rotate(90deg);
+}
+
+.lobby__advanced .settings-section {
+  padding: 0 14px 14px;
+  margin-top: 0;
+  /*
+   * The settings scroll inside their own box rather than growing the panel,
+   * so the start button keeps its place whether the section is open or shut.
+   * 430px is the fixed chrome around it: title, tabs, opponents, colours,
+   * this summary, and the two buttons underneath.
+   */
+  max-height: max(150px, calc(90vh - 430px));
+  overflow-y: auto;
 }
 
 .lobby__screen {
@@ -1301,12 +1332,18 @@ body {
   color: var(--muted);
 }
 
+/*
+ * Pinned to the foot of the panel: expanding the settings makes the panel
+ * scroll, and the button that actually starts the game must not be the thing
+ * that scrolls away.
+ */
 .lobby__actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
   width: 100%;
   margin-top: 4px;
+  flex: none;
 }
 
 .lobby__colors {
