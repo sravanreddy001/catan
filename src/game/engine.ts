@@ -21,7 +21,8 @@ import {
   hasCards,
   largestArmyHolder,
   pay,
-  victoryPoints,
+  victoryPointHalves,
+  MERCHANT_LIMIT,
   type BuildKind,
   type DevKind,
   type Player,
@@ -45,6 +46,8 @@ export interface GameSettings {
   santaMode: boolean
   /** Speed mode: opening placements are auto-placed and each turn rolls dice twice. */
   speedMode: boolean
+  /** Expanded dev deck: adds Merchant, Trailblazer, Diplomat and Merit, with fewer knights. */
+  newDevCards: boolean
 }
 
 export function defaultSettings(): GameSettings {
@@ -54,6 +57,7 @@ export function defaultSettings(): GameSettings {
     bankPreset: 'standard',
     santaMode: false,
     speedMode: false,
+    newDevCards: false,
   }
 }
 
@@ -96,8 +100,14 @@ export interface GameState {
   playedDev: boolean
   /** Free roads owed by a road-building card. */
   freeRoads: number
-  picking: 'monopoly' | 'plenty' | 'santaBonus' | null
+  picking: 'monopoly' | 'plenty' | 'santaBonus' | 'meritBonus' | null
   plentyLeft: number
+  /**
+   * An open Merchant play: baskets fill freely across resource types and the
+   * swap only commits once both hold the same number of cards, at most
+   * MERCHANT_LIMIT each.
+   */
+  merchant: { give: Partial<Record<Resource, number>>; get: Partial<Record<Resource, number>> } | null
   /** Cards each over-7-card player still owes after a 7 is rolled. */
   discards: Partial<Record<PlayerId, number>>
   /** Random turn order, shuffled once at game start; `turn`/`setupIndex` index into this. */
@@ -117,6 +127,11 @@ export type Action =
   | { type: 'monopoly'; res: Resource }
   | { type: 'plenty'; res: Resource }
   | { type: 'santaBonus'; res: Resource }
+  | { type: 'meritBonus'; res: Resource }
+  /** Step one resource in one of the Merchant baskets; `delta` is +1 or -1. */
+  | { type: 'merchantPick'; side: 'give' | 'get'; res: Resource; delta: number }
+  | { type: 'merchantConfirm' }
+  | { type: 'merchantCancel' }
   | { type: 'propose'; offer: TradeOffer }
   | { type: 'acceptOffer'; responder: PlayerId }
   | { type: 'declineOffer'; responder: PlayerId }
@@ -174,11 +189,12 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     robberTile: board.tiles.find((t) => t.type === 'desert')?.id ?? board.tiles[0].id,
     message: `${players[order[0]].name}: place your first settlement.`,
     offer: null,
-    deck: createDevDeck(),
+    deck: createDevDeck(Math.random, finalSettings.newDevCards, finalSettings.santaMode),
     playedDev: false,
     freeRoads: 0,
     picking: null,
     plentyLeft: 0,
+    merchant: null,
     discards: {},
     order,
     settings: finalSettings,
@@ -451,6 +467,18 @@ function stealFrom(state: GameState, tileId: string): GameState {
   if (victims.length === 0) return { ...state, message: 'Robber moved — nobody to rob.' }
 
   const victim = pick(victims)
+
+  // A Diplomat absorbs the steal here, at resolution — not by making the tile
+  // illegal to target. Placement stays legal for everyone, so a bot's choice of
+  // tile never reveals who is shielded.
+  if (victim.shielded) {
+    return {
+      ...state,
+      players: state.players.map((p) => (p.id === victim.id ? { ...p, shielded: false } : p)),
+      message: `${victim.name}'s Diplomat blocked the steal.`,
+    }
+  }
+
   const card = pick(handCards(victim))
   const players = state.players.map((p) => {
     if (p.id === victim.id) return { ...p, hand: { ...p.hand, [card]: p.hand[card] - 1 } }
@@ -496,7 +524,11 @@ export function reduce(state: GameState, action: Action): GameState {
   if (next === state) return state
   const largestArmy = largestArmyHolder(next.players)
   const longestRoad = longestRoadHolder(next.board, next.players)
-  const champion = next.players.find((p) => victoryPoints(p, largestArmy, longestRoad) >= next.settings.vpTarget)
+  // Compared in halves so a Merit's half-point can never round a player over
+  // the line: 9.5 does not win a game played to 10.
+  const champion = next.players.find(
+    (p) => victoryPointHalves(p, largestArmy, longestRoad) >= next.settings.vpTarget * 2,
+  )
   return champion
     ? { ...next, winner: champion.id, message: `${champion.name} wins!` }
     : next
@@ -615,7 +647,13 @@ function step(state: GameState, action: Action): GameState {
     }
 
     case 'roll': {
-      if (state.hasRolled || state.phase !== 'play' || state.mode === 'robber' || state.picking !== null) {
+      if (
+        state.hasRolled ||
+        state.phase !== 'play' ||
+        state.mode === 'robber' ||
+        state.picking !== null ||
+        state.merchant
+      ) {
         return state
       }
       const rollsNeeded = state.settings.speedMode ? 2 : 1
@@ -728,13 +766,20 @@ function step(state: GameState, action: Action): GameState {
     case 'playDev': {
       const card = current.devCards.find((c) => c.id === action.cardId)
       if (!card || !card.ready || state.playedDev || card.kind === 'victory') return state
+      if (card.spent) return state
+      // Merit keeps scoring after its resource is claimed, so it is marked
+      // spent instead of being discarded like every other kind.
+      const keeps = card.kind === 'merit'
       const base: GameState = {
         ...state,
         playedDev: true,
         players: withCurrent(state, (p) => ({
           ...p,
-          devCards: p.devCards.filter((c) => c.id !== card.id),
+          devCards: keeps
+            ? p.devCards.map((c) => (c.id === card.id ? { ...c, spent: true } : c))
+            : p.devCards.filter((c) => c.id !== card.id),
           knights: p.knights + (card.kind === 'knight' ? 1 : 0),
+          shielded: p.shielded || card.kind === 'diplomat',
         })),
       }
       switch (card.kind) {
@@ -754,6 +799,14 @@ function step(state: GameState, action: Action): GameState {
           return { ...base, picking: 'monopoly' }
         case 'plenty':
           return { ...base, picking: 'plenty', plentyLeft: 2 }
+        case 'trailblazer':
+          return { ...base, freeRoads: 1, mode: 'road', message: 'Trailblazer — place 1 free road.' }
+        case 'merchant':
+          return { ...base, merchant: { give: {}, get: {} }, message: 'Merchant — swap up to 3 cards.' }
+        case 'diplomat':
+          return { ...base, message: 'Diplomat played — the next steal against you is blocked.' }
+        case 'merit':
+          return { ...base, picking: 'meritBonus', message: 'Merit — pick a free resource.' }
         default:
           return base
       }
@@ -810,6 +863,68 @@ function step(state: GameState, action: Action): GameState {
       }
     }
 
+    case 'meritBonus': {
+      if (state.picking !== 'meritBonus') return state
+      if (state.bank[action.res] < 1) return state
+      return {
+        ...state,
+        bank: { ...state.bank, [action.res]: state.bank[action.res] - 1 },
+        players: withCurrent(state, (p) => ({
+          ...p,
+          hand: { ...p.hand, [action.res]: p.hand[action.res] + 1 },
+        })),
+        picking: null,
+        message: `Merit — took 1 ${action.res}.`,
+      }
+    }
+
+    case 'merchantPick': {
+      if (!state.merchant) return state
+      const basket = { ...state.merchant[action.side] }
+      const next = (basket[action.res] ?? 0) + action.delta
+      if (next < 0) return state
+      // Cap each basket at 3, never offer cards you do not hold, and never ask
+      // the bank for a resource it has run out of.
+      const others = Object.entries(basket)
+        .filter(([res]) => res !== action.res)
+        .reduce((sum, [, n]) => sum + (n ?? 0), 0)
+      if (others + next > MERCHANT_LIMIT) return state
+      if (action.side === 'give' && next > current.hand[action.res]) return state
+      if (action.side === 'get' && next > state.bank[action.res]) return state
+      if (next === 0) delete basket[action.res]
+      else basket[action.res] = next
+      return { ...state, merchant: { ...state.merchant, [action.side]: basket } }
+    }
+
+    case 'merchantConfirm': {
+      if (!state.merchant) return state
+      const total = (basket: Partial<Record<Resource, number>>) =>
+        Object.values(basket).reduce((sum, n) => sum + (n ?? 0), 0)
+      const out = total(state.merchant.give)
+      // 1:1 means the two baskets must match; an empty swap is not a play.
+      if (out === 0 || out !== total(state.merchant.get)) return state
+      const { give, get } = state.merchant
+      const bank = { ...state.bank }
+      for (const [res, n] of Object.entries(give)) bank[res as Resource] += n ?? 0
+      for (const [res, n] of Object.entries(get)) bank[res as Resource] -= n ?? 0
+      return {
+        ...state,
+        bank,
+        players: withCurrent(state, (p) => {
+          const hand = { ...p.hand }
+          for (const [res, n] of Object.entries(give)) hand[res as Resource] -= n ?? 0
+          for (const [res, n] of Object.entries(get)) hand[res as Resource] += n ?? 0
+          return { ...p, hand }
+        }),
+        merchant: null,
+        message: `Merchant — swapped ${out} card${out === 1 ? '' : 's'} with the bank.`,
+      }
+    }
+
+    // Backing out leaves the card spent: it was played, the swap was declined.
+    case 'merchantCancel':
+      return state.merchant ? { ...state, merchant: null, message: 'Merchant swap cancelled.' } : state
+
     case 'propose':
       return { ...state, offer: action.offer, message: 'Trade offered — waiting on a response.' }
 
@@ -849,7 +964,7 @@ function step(state: GameState, action: Action): GameState {
       return { ...state, offer: null, message: 'Offer cancelled.' }
 
     case 'endTurn': {
-      if (state.phase !== 'play' || state.mode === 'robber' || state.picking) return state
+      if (state.phase !== 'play' || state.mode === 'robber' || state.picking || state.merchant) return state
       const next = (state.turn + 1) % state.players.length
       const nextId = state.order[next]
       return {

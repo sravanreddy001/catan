@@ -7,6 +7,9 @@ import {
   BankSupply,
   BuildGuide,
   DevBar,
+  DevCardGuide,
+  DevCardSheet,
+  MerchantPanel,
   Dice,
   DiscardPicker,
   HandBar,
@@ -38,6 +41,7 @@ import {
   scoreBreakdown,
   victoryPoints,
   type BuildKind,
+  type DevCard,
   type PlayerId,
 } from './game/players'
 import {
@@ -86,6 +90,10 @@ export default function App() {
   const [rolling, setRolling] = useState(false)
   const [composingOffer, setComposingOffer] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
+  const [showCardGuide, setShowCardGuide] = useState(false)
+  // A card is never spent by a stray tap: tapping opens a sheet stating what
+  // the card does, and only the sheet's Play button dispatches.
+  const [confirmCard, setConfirmCard] = useState<DevCard | null>(null)
   const [endView, setEndView] = useState<'scores' | 'map'>('scores')
   const [showBreakdown, setShowBreakdown] = useState(false)
   /** AI preset assigned to each bot seat (offline only). Seat -> preset mapping. */
@@ -506,6 +514,41 @@ export default function App() {
         />
       )}
 
+      {myTurn && state.picking === 'meritBonus' && (
+        <ResourcePicker
+          title="Merit — pick a free resource"
+          hint="Worth half a point, and take 1 resource from the bank."
+          onPick={(res) => dispatch({ type: 'meritBonus', res })}
+        />
+      )}
+
+      {myTurn && state.merchant && (
+        <MerchantPanel
+          baskets={state.merchant}
+          player={current}
+          bank={state.bank}
+          onPick={(side, res, delta) => dispatch({ type: 'merchantPick', side, res, delta })}
+          onConfirm={() => dispatch({ type: 'merchantConfirm' })}
+          onCancel={() => dispatch({ type: 'merchantCancel' })}
+        />
+      )}
+
+      {confirmCard && (
+        <DevCardSheet
+          card={confirmCard}
+          deckCount={state.deck.length}
+          onPlay={() => {
+            dispatch({ type: 'playDev', cardId: confirmCard.id })
+            setConfirmCard(null)
+          }}
+          onCancel={() => setConfirmCard(null)}
+        />
+      )}
+
+      {showCardGuide && (
+        <DevCardGuide deck={state.deck} onClose={() => setShowCardGuide(false)} />
+      )}
+
       {myTurn && (
         <OfferComposer
           player={current}
@@ -614,10 +657,16 @@ export default function App() {
           <DevBar
             player={current}
             deckCount={state.deck.length}
-            busy={state.mode === 'robber' || state.freeRoads > 0 || state.picking !== null}
+            busy={
+              state.mode === 'robber' ||
+              state.freeRoads > 0 ||
+              state.picking !== null ||
+              state.merchant !== null
+            }
             playedThisTurn={state.playedDev}
             onBuy={() => dispatch({ type: 'buyDev' })}
-            onPlay={(card) => dispatch({ type: 'playDev', cardId: card.id })}
+            onPlay={(card) => setConfirmCard(card)}
+            onGuide={() => setShowCardGuide(true)}
           />
         )}
 

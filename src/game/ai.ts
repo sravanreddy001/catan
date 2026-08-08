@@ -245,6 +245,45 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
     return { type: 'santaBonus', res: least ?? inStock[0] ?? 'ore' }
   }
 
+  if (state.picking === 'meritBonus') {
+    // Same shape as the Santa bonus: take something the current build needs,
+    // otherwise top up whatever is scarcest in hand.
+    const need = { ...missingFor(me, 'settlement'), ...missingFor(me, 'city') }
+    const needed = (Object.keys(need) as Resource[]).filter((res) => inStock.includes(res))
+    const wanted = best(needed, (res) => -me.hand[res]) ?? best(inStock, (res) => -me.hand[res])
+    return { type: 'meritBonus', res: wanted ?? inStock[0] ?? 'ore' }
+  }
+
+  // An open Merchant swap blocks every other action, so the bot has to finish
+  // it: give away surplus one card at a time, take what the next build needs,
+  // then confirm. Cancel only when there is genuinely nothing worth swapping.
+  if (state.merchant) {
+    const given = Object.values(state.merchant.give).reduce((sum, n) => sum + (n ?? 0), 0)
+    const taken = Object.values(state.merchant.get).reduce((sum, n) => sum + (n ?? 0), 0)
+    const need = { ...missingFor(me, 'settlement'), ...missingFor(me, 'city') }
+    const wants = (Object.keys(need) as Resource[]).filter((res) => inStock.includes(res))
+
+    if (given === taken && given > 0) return { type: 'merchantConfirm' }
+
+    if (given <= taken) {
+      // Spare cards are ones the current build does not call for; keep at least
+      // one of anything needed so the swap cannot undo its own goal.
+      const offered = state.merchant.give
+      const spare = ALL.filter(
+        (res) => me.hand[res] - (offered[res] ?? 0) > 0 && !wants.includes(res),
+      )
+      const give = best(spare, (res) => me.hand[res])
+      if (give) return { type: 'merchantPick', side: 'give', res: give, delta: 1 }
+      return given > 0 && given === taken
+        ? { type: 'merchantConfirm' }
+        : { type: 'merchantCancel' }
+    }
+
+    const get = best(wants, (res) => -me.hand[res]) ?? best(inStock, (res) => -me.hand[res])
+    if (get) return { type: 'merchantPick', side: 'get', res: get, delta: 1 }
+    return { type: 'merchantCancel' }
+  }
+
   if (state.mode === 'robber') return { type: 'tile', id: robberTarget(state, seat, preset) }
 
   // --- opening placements -------------------------------------------------
@@ -285,7 +324,7 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
 
   // Knights win the largest army bonus and the robber is worth moving.
   if (!state.playedDev) {
-    const playable = me.devCards.find((c) => c.ready && c.kind !== 'victory')
+    const playable = me.devCards.find((c) => c.ready && c.kind !== 'victory' && !c.spent)
     if (playable) return { type: 'playDev', cardId: playable.id }
   }
 

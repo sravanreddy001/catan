@@ -2,13 +2,29 @@ import type { Resource } from './board'
 
 export type PlayerId = 0 | 1 | 2 | 3
 
-export type DevKind = 'knight' | 'victory' | 'roadBuilding' | 'monopoly' | 'plenty'
+export type DevKind =
+  | 'knight'
+  | 'victory'
+  | 'roadBuilding'
+  | 'monopoly'
+  | 'plenty'
+  // Only dealt when the newDevCards setting is on; see createDevDeck.
+  | 'merchant'
+  | 'trailblazer'
+  | 'diplomat'
+  | 'merit'
 
 export interface DevCard {
   id: string
   kind: DevKind
   /** Cards cannot be played on the turn they are bought. */
   ready: boolean
+  /**
+   * Merit only: its free resource has been taken. The card is kept rather than
+   * discarded because its half-point keeps counting once spent — every other
+   * kind leaves the hand when played.
+   */
+  spent?: boolean
 }
 
 export const DEV_LABEL: Record<DevKind, string> = {
@@ -17,6 +33,10 @@ export const DEV_LABEL: Record<DevKind, string> = {
   roadBuilding: 'Road building',
   monopoly: 'Monopoly',
   plenty: 'Year of plenty',
+  merchant: 'Merchant',
+  trailblazer: 'Trailblazer',
+  diplomat: 'Diplomat',
+  merit: 'Merit',
 }
 
 export const DEV_ICON: Record<DevKind, string> = {
@@ -25,7 +45,32 @@ export const DEV_ICON: Record<DevKind, string> = {
   roadBuilding: '🛣️',
   monopoly: '💰',
   plenty: '🎁',
+  merchant: '⚖️',
+  trailblazer: '🧭',
+  diplomat: '🕊️',
+  merit: '🎖️',
 }
+
+/**
+ * One plain sentence per kind, shown in the play-confirm sheet and the card
+ * guide. Nine kinds is too many to keep in a player's head, and the original
+ * five never explained themselves either — so every kind gets a rule, not just
+ * the new ones.
+ */
+export const DEV_RULE: Record<DevKind, string> = {
+  knight: 'Move the robber and steal a card. Three of these wins Largest Army.',
+  victory: 'Worth 1 point. Stays hidden until you win.',
+  roadBuilding: 'Build 2 roads free.',
+  monopoly: 'Name a resource — every player hands you all of theirs.',
+  plenty: 'Take any 2 resources from the bank.',
+  merchant: 'Swap up to 3 cards with the bank, 1 for 1. Mix freely.',
+  trailblazer: 'Build 1 road free.',
+  diplomat: 'Blocks the next attempt to steal from you. Used up when it fires.',
+  merit: 'Worth half a point, and take 1 resource from the bank. Two make a full point.',
+}
+
+/** Most cards a single Merchant play may swap, in each direction. */
+export const MERCHANT_LIMIT = 3
 
 export const DEV_COST: Partial<Record<Resource, number>> = { wool: 1, grain: 1, ore: 1 }
 
@@ -42,6 +87,12 @@ export interface Player {
   devCards: DevCard[]
   /** Knights played, for largest army. */
   knights: number
+  /**
+   * A played Diplomat, waiting to absorb the next steal aimed at this player.
+   * Checked when the robber resolves rather than when it is placed, so no
+   * bot's choice of tile can reveal who is holding one.
+   */
+  shielded: boolean
 }
 
 export const RESOURCES: Resource[] = ['brick', 'lumber', 'wool', 'grain', 'ore']
@@ -92,12 +143,39 @@ export function createPlayers(count = 4, colorIndices?: number[]): Player[] {
       roads: [],
       devCards: [],
       knights: 0,
+      shielded: false,
     }
   })
 }
 
-/** Standard 25-card development deck, shuffled. */
-export function createDevDeck(rand: () => number = Math.random): DevKind[] {
+/**
+ * 25-card development deck, shuffled.
+ *
+ * `extraKinds` swaps the standard 14/5/2/2/2 for the expanded composition:
+ * knights drop to 9 so Largest Army stays reachable but becomes a race, and
+ * the four new kinds take 6 of the 25 slots. `noRobber` (Santa mode) drops
+ * Diplomat — it shields against a steal that mode has removed — and gives its
+ * slot back to the knights. Either way the deck is exactly 25 cards.
+ */
+export function createDevDeck(
+  rand: () => number = Math.random,
+  extraKinds = false,
+  noRobber = false,
+): DevKind[] {
+  if (extraKinds) {
+    const deck: DevKind[] = [
+      ...Array<DevKind>(noRobber ? 10 : 9).fill('knight'),
+      ...Array<DevKind>(4).fill('victory'),
+      ...Array<DevKind>(2).fill('roadBuilding'),
+      ...Array<DevKind>(2).fill('monopoly'),
+      ...Array<DevKind>(2).fill('plenty'),
+      ...Array<DevKind>(2).fill('merchant'),
+      ...Array<DevKind>(2).fill('trailblazer'),
+      ...Array<DevKind>(noRobber ? 0 : 1).fill('diplomat'),
+      ...Array<DevKind>(1).fill('merit'),
+    ]
+    return shuffle(deck, rand)
+  }
   const deck: DevKind[] = [
     ...Array<DevKind>(14).fill('knight'),
     ...Array<DevKind>(5).fill('victory'),
@@ -105,6 +183,10 @@ export function createDevDeck(rand: () => number = Math.random): DevKind[] {
     ...Array<DevKind>(2).fill('monopoly'),
     ...Array<DevKind>(2).fill('plenty'),
   ]
+  return shuffle(deck, rand)
+}
+
+function shuffle(deck: DevKind[], rand: () => number): DevKind[] {
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1))
     ;[deck[i], deck[j]] = [deck[j], deck[i]]
@@ -196,19 +278,43 @@ export function applyTrade(
   })
 }
 
-export function victoryPoints(
+/**
+ * Victory points counted in halves, so Merit's half-point stays an integer.
+ * Everything else is worth an even number of halves; only Merit is odd.
+ *
+ * This is the single source of truth for scoring — `victoryPoints` divides it
+ * for display, and the win check compares it against `vpTarget * 2`. Keep the
+ * comparison in one place (engine's `reduce`) rather than inlining it.
+ */
+export function victoryPointHalves(
   player: Player,
   largestArmy: PlayerId | null = null,
   longestRoad: PlayerId | null = null,
 ): number {
   const cards = player.devCards.filter((c) => c.kind === 'victory').length
+  const merits = player.devCards.filter((c) => c.kind === 'merit').length
   return (
-    player.settlements.length +
-    player.cities.length * 2 +
-    cards +
-    (largestArmy === player.id ? 2 : 0) +
-    (longestRoad === player.id ? 2 : 0)
+    player.settlements.length * 2 +
+    player.cities.length * 4 +
+    cards * 2 +
+    merits +
+    (largestArmy === player.id ? 4 : 0) +
+    (longestRoad === player.id ? 4 : 0)
   )
+}
+
+/** Points as shown to players — a whole number, or a `.5` when Merit is held. */
+export function victoryPoints(
+  player: Player,
+  largestArmy: PlayerId | null = null,
+  longestRoad: PlayerId | null = null,
+): number {
+  return victoryPointHalves(player, largestArmy, longestRoad) / 2
+}
+
+/** Scores render as "7" or "7.5" — never "7.0". */
+export function formatVP(points: number): string {
+  return Number.isInteger(points) ? String(points) : points.toFixed(1)
 }
 
 export interface ScoreBreakdown {
@@ -217,6 +323,9 @@ export interface ScoreBreakdown {
   cities: number
   cityPoints: number
   devCardPoints: number
+  /** Merit cards held; each is worth half a point, so this line can read "1.5". */
+  meritCards: number
+  meritPoints: number
   largestArmy: boolean
   longestRoad: boolean
   total: number
@@ -229,6 +338,7 @@ export function scoreBreakdown(
   longestRoad: PlayerId | null = null,
 ): ScoreBreakdown {
   const devCardPoints = player.devCards.filter((c) => c.kind === 'victory').length
+  const meritCards = player.devCards.filter((c) => c.kind === 'merit').length
   const hasLargestArmy = largestArmy === player.id
   const hasLongestRoad = longestRoad === player.id
   return {
@@ -237,13 +347,10 @@ export function scoreBreakdown(
     cities: player.cities.length,
     cityPoints: player.cities.length * 2,
     devCardPoints,
+    meritCards,
+    meritPoints: meritCards / 2,
     largestArmy: hasLargestArmy,
     longestRoad: hasLongestRoad,
-    total:
-      player.settlements.length +
-      player.cities.length * 2 +
-      devCardPoints +
-      (hasLargestArmy ? 2 : 0) +
-      (hasLongestRoad ? 2 : 0),
+    total: victoryPoints(player, largestArmy, longestRoad),
   }
 }

@@ -1192,3 +1192,80 @@ body {
     font-size: 20px;
   }
 }
+
+/* ---------- dev card sheet, guide and Merchant baskets ---------- */
+
+/* New kinds carry the same violet as the "Buy dev" button, so they read as
+   deck additions rather than a separate UI language. */
+.devcard--kind-new {
+  border-color: rgba(154, 130, 219, 0.55);
+  background: rgba(154, 130, 219, 0.14);
+}
+
+/* A Diplomat that is actually shielding right now. */
+.devcard--shield {
+  border-color: #7fc8e8;
+  background: rgba(127, 200, 232, 0.16);
+}
+
+.cardsheet {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.cardsheet__art {
+  flex: 0 0 62px;
+  height: 84px;
+  border-radius: 10px;
+  background: #f2ead9;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+}
+
+.cardsheet__name {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.cardsheet__rule {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cardsheet__meta {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.guide--scroll {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+/* The card guide reuses the build guide's rows, with a rule line under the
+   name and the remaining count where a cost would sit. */
+.guide__rule {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: normal;
+}
+
+.guide__row--new .guide__name {
+  color: #c3b2f0;
+}
+
+.trade-eyebrow span {
+  float: right;
+  font-variant-numeric: tabular-nums;
+}

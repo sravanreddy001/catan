@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **New dev card types** (lobby setting, off by default). Four kinds join the deck: Merchant swaps up to 3 cards with the bank at 1:1, mixing resource types freely; Trailblazer builds 1 free road; Diplomat blocks the next steal aimed at its holder; Merit is worth half a point and grants a resource from the bank. Knights drop from 14 to 9 to make room, so Largest Army becomes a race. With Santa mode also on, Diplomat is dropped for a 10th knight, since that mode removes the steal it would block.
+- Every development card now explains itself: tapping a card opens a confirm sheet stating its rule before it resolves, and a new card guide lists every kind in the deck with its rule and how many are left. Both cover the original five kinds too.
+
+### Changed
+- Victory points are tracked in half-points internally so Merit can be worth 0.5. Scores display the true fraction ("7.5 / 10"); the win check still requires the full target, so 9.5 does not win a game played to 10.
+- Diplomat resolves at the moment of a steal rather than blocking robber placement, so no bot's choice of tile can reveal who is shielded.
+- `scripts/full-game-simulation.ts` takes an optional settings argument, so variants can be smoke-tested the same way the standard game is.
+
 ## [1.0.0] - 2026-08-06
 
 First tagged release. The web app has grown from a board UI into a full playable game.

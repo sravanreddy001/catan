@@ -8,15 +8,19 @@ import {
   DEV_COST,
   DEV_ICON,
   DEV_LABEL,
+  DEV_RULE,
+  MERCHANT_LIMIT,
   RESOURCES,
   RESOURCE_ICON,
   canAfford,
   canAffordDev,
   hasCards,
   isEmptyBundle,
+  formatVP,
   victoryPoints,
   type BuildKind,
   type DevCard,
+  type DevKind,
   type Player,
   type PlayerId,
   type TradeOffer,
@@ -96,7 +100,9 @@ export function PlayerStrip({
           <span className="chip__name">{p.name}</span>
           {largestArmy === p.id && <span title="Largest army">⚔️</span>}
           {longestRoad === p.id && <span title="Longest road">🛣️</span>}
-          <span className="chip__vp">{victoryPoints(p, largestArmy, longestRoad)} / {vpTarget}</span>
+          <span className="chip__vp">
+            {formatVP(victoryPoints(p, largestArmy, longestRoad))} / {vpTarget}
+          </span>
         </div>
       ))}
     </div>
@@ -111,7 +117,8 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
     settings.vpTarget !== 10 ||
     settings.bankPreset !== 'standard' ||
     settings.santaMode ||
-    settings.speedMode
+    settings.speedMode ||
+    settings.newDevCards
   const hasActiveBotPresets = Object.values(botPresets).some((p) => p !== null)
   const hasNonDefault = hasNonDefaultSettings || hasActiveBotPresets
 
@@ -143,6 +150,7 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
         {settings.bankPreset !== 'standard' && <span title={`Bank: ${bankPresetLabel[settings.bankPreset]}`}>🏦</span>}
         {settings.santaMode && <span title="Santa mode">🎅</span>}
         {settings.speedMode && <span title="Speed mode">⚡</span>}
+        {settings.newDevCards && <span title="Expanded dev card deck">🃏</span>}
         {hasActiveBotPresets && Object.entries(botPresets).map(([seat, preset]) => {
           if (!preset) return null
           return <span key={seat} title={`Bot ${seat}: ${preset}`}>{presetEmojis[preset]}</span>
@@ -159,6 +167,7 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
               {settings.bankPreset !== 'standard' && <div>✓ Bank preset: {bankPresetLabel[settings.bankPreset]}</div>}
               {settings.santaMode && <div>✓ Santa mode: friendly variant (no robber)</div>}
               {settings.speedMode && <div>✓ Speed mode: auto-placed setup, 2 rolls per turn</div>}
+              {settings.newDevCards && <div>✓ New dev cards: Merchant, Trailblazer, Diplomat, Merit — fewer knights</div>}
               {hasActiveBotPresets && (
                 <>
                   <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
@@ -338,7 +347,11 @@ interface DevBarProps {
   playedThisTurn: boolean
   onBuy: () => void
   onPlay: (card: DevCard) => void
+  onGuide: () => void
 }
+
+/** The four kinds only dealt when the expanded deck is on, tinted to stand out. */
+const EXTRA_KINDS: DevKind[] = ['merchant', 'trailblazer', 'diplomat', 'merit']
 
 export function DevBar({
   player,
@@ -347,6 +360,7 @@ export function DevBar({
   playedThisTurn,
   onBuy,
   onPlay,
+  onGuide,
 }: DevBarProps) {
   return (
     <div className="devbar">
@@ -358,23 +372,199 @@ export function DevBar({
       >
         Buy dev 🐑🌾⛰️
       </button>
+      <button className="btn btn--icon-only" onClick={onGuide} title="What do the cards do?">
+        ❓
+      </button>
       <div className="devbar__cards">
         {player.devCards.length === 0 && <span className="devbar__empty">no cards</span>}
         {player.devCards.map((c) => {
-          const playable = c.kind !== 'victory' && c.ready && !playedThisTurn && !busy
+          const playable = c.kind !== 'victory' && c.ready && !playedThisTurn && !busy && !c.spent
+          const classes = [
+            'devcard',
+            c.ready ? '' : 'devcard--new',
+            EXTRA_KINDS.includes(c.kind) ? 'devcard--kind-new' : '',
+            c.kind === 'diplomat' && player.shielded ? 'devcard--shield' : '',
+          ]
           return (
             <button
               key={c.id}
-              className={`devcard${c.ready ? '' : ' devcard--new'}`}
+              className={classes.filter(Boolean).join(' ')}
               disabled={!playable}
-              title={c.kind === 'victory' ? 'Counts towards victory automatically' : DEV_LABEL[c.kind]}
+              title={c.kind === 'victory' ? 'Counts towards victory automatically' : DEV_RULE[c.kind]}
               onClick={() => onPlay(c)}
             >
               <span>{DEV_ICON[c.kind]}</span>
-              <span className="devcard__label">{DEV_LABEL[c.kind]}</span>
+              <span className="devcard__label">
+                {DEV_LABEL[c.kind]}
+                {c.spent ? ' · used' : ''}
+              </span>
             </button>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Confirm step shown when a card is tapped. Nine kinds is more than anyone
+ * holds in their head, so a card states what it does before it resolves —
+ * which also means no card is ever spent by a stray tap.
+ */
+export function DevCardSheet({
+  card,
+  deckCount,
+  onPlay,
+  onCancel,
+}: {
+  card: DevCard
+  deckCount: number
+  onPlay: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="modal">
+      <div className="modal__panel">
+        <div className="cardsheet">
+          <div className="cardsheet__art">{DEV_ICON[card.kind]}</div>
+          <div>
+            <p className="cardsheet__name">{DEV_LABEL[card.kind]}</p>
+            <p className="cardsheet__rule">{DEV_RULE[card.kind]}</p>
+            <p className="cardsheet__meta">{deckCount} cards left in the deck</p>
+          </div>
+        </div>
+        <div className="modal__actions">
+          <button className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn btn--primary" onClick={onPlay}>
+            Play {DEV_LABEL[card.kind]}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Every kind in the current deck, with its rule and how many are left. */
+export function DevCardGuide({
+  deck,
+  onClose,
+}: {
+  deck: DevKind[]
+  onClose: () => void
+}) {
+  const kinds = (Object.keys(DEV_LABEL) as DevKind[]).filter(
+    (k) => !EXTRA_KINDS.includes(k) || deck.includes(k),
+  )
+  return (
+    <div className="modal">
+      <div className="modal__panel">
+        <div className="trade-head">
+          <h2 className="modal__title">Development cards</h2>
+          <button className="trade-close" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <div className="guide guide--scroll">
+          {kinds.map((k) => (
+            <div
+              key={k}
+              className={`guide__row${EXTRA_KINDS.includes(k) ? ' guide__row--new' : ''}`}
+            >
+              <span className="guide__piece">{DEV_ICON[k]}</span>
+              <span className="guide__name">
+                {DEV_LABEL[k]}
+                <span className="guide__rule">{DEV_RULE[k]}</span>
+              </span>
+              <span className="guide__cost">{deck.filter((d) => d === k).length}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type MerchantBaskets = { give: Bundle; get: Bundle }
+
+/**
+ * Merchant: three independent 1:1 swaps resolved as one transaction, so both
+ * baskets fill freely across resource types and only the totals have to match.
+ */
+export function MerchantPanel({
+  baskets,
+  player,
+  bank,
+  onPick,
+  onConfirm,
+  onCancel,
+}: {
+  baskets: MerchantBaskets
+  player: Player
+  bank: Record<Resource, number>
+  onPick: (side: 'give' | 'get', res: Resource, delta: number) => void
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const total = (b: Bundle) => Object.values(b).reduce((sum, n) => sum + (n ?? 0), 0)
+  const given = total(baskets.give)
+  const taken = total(baskets.get)
+  const balanced = given > 0 && given === taken
+
+  const row = (side: 'give' | 'get') =>
+    RESOURCES.map((r) => {
+      const n = baskets[side][r] ?? 0
+      const cap = side === 'give' ? player.hand[r] : bank[r]
+      const full = given >= MERCHANT_LIMIT && side === 'give' && n === 0
+      return (
+        <button
+          key={r}
+          className={`trade-cell trade-cell--${side === 'give' ? 'give' : 'want'}${
+            n > 0 ? ' trade-cell--filled' : ' trade-cell--pick'
+          }`}
+          disabled={cap === 0 || full}
+          onClick={() => onPick(side, r, 1)}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            onPick(side, r, -1)
+          }}
+        >
+          <span className="trade-cell__icon">{RESOURCE_ICON[r]}</span>
+          <span className="trade-cell__count">{n > 0 ? n : cap}</span>
+        </button>
+      )
+    })
+
+  return (
+    <div className="modal">
+      <div className="modal__panel">
+        <div className="trade-head">
+          <h2 className="modal__title">{DEV_ICON.merchant} Merchant</h2>
+          <button className="trade-close" onClick={onCancel}>
+            ✕
+          </button>
+        </div>
+        <p className="cardsheet__rule">{DEV_RULE.merchant}</p>
+
+        <span className="trade-eyebrow trade-eyebrow--give">
+          Give <span>{given} / {MERCHANT_LIMIT}</span>
+        </span>
+        <div className="trade-grid">{row('give')}</div>
+
+        <span className="trade-eyebrow trade-eyebrow--want">
+          Get <span>{taken} / {given || MERCHANT_LIMIT}</span>
+        </span>
+        <div className="trade-grid">{row('get')}</div>
+
+        <div className="modal__actions">
+          <button className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn btn--primary" disabled={!balanced} onClick={onConfirm}>
+            {balanced ? `Swap ${given}` : given > taken ? `Pick ${given - taken} more` : 'Pick cards'}
+          </button>
+        </div>
       </div>
     </div>
   )

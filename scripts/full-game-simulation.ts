@@ -4,7 +4,11 @@
  * catch reducer/AI bugs — infinite loops, thrown exceptions, games that
  * never reach a winner — before they ship.
  *
- * Run: npx tsx scripts/full-game-simulation.ts [gameCount]
+ * Run: npx tsx scripts/full-game-simulation.ts [gameCount] [settingsJson]
+ *
+ * The optional second argument is a partial GameSettings object, so a variant
+ * can be smoke-tested the same way the standard game is — e.g.
+ * `npx tsx scripts/full-game-simulation.ts 20 '{"newDevCards":true}'`.
  */
 
 import { createGame, currentPlayerId, longestRoadHolder, reduce, type GameState } from '../src/game/engine'
@@ -12,6 +16,7 @@ import { chooseAction, chooseDiscard } from '../src/game/ai'
 import { largestArmyHolder, victoryPoints, type PlayerId } from '../src/game/players'
 
 const GAME_COUNT = Number(process.argv[2]) || 20
+const SETTINGS = process.argv[3] ? JSON.parse(process.argv[3]) : {}
 const MAX_ACTIONS_PER_GAME = 20000
 
 interface GameResult {
@@ -23,7 +28,7 @@ interface GameResult {
 }
 
 function playOneGame(index: number): GameResult {
-  let state: GameState = createGame(4, undefined, undefined, {})
+  let state: GameState = createGame(4, undefined, undefined, SETTINGS)
   let actions = 0
 
   try {
