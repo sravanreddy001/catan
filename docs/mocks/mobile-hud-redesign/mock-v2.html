@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile HUD — mixed direction (A dock + C fan + B stack)</title>
+<style>
+  :root{
+    --bg:#0d2438; --sea:#14405f; --panel:#10314a; --panel-2:#0b2438;
+    --line:rgba(255,255,255,.12); --text:#eaf1f7; --muted:#9db4c7;
+    --gold:#f3c969; --violet:#9a82db; --violet-2:#c3b2f0; --teal:#3fb8af; --teal-2:#7fe0d8;
+    --red:#e2483c; --blue:#3d7fd6; --orange:#ef8b34; --white:#f2ede4;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:28px 22px 60px;background:#081726;color:var(--text);
+    font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  h1{font-size:21px;margin:0 0 6px;letter-spacing:.02em}
+  .sub{color:var(--muted);font-size:13.5px;max-width:70ch;line-height:1.55;margin:0 0 4px}
+  h2{font-size:15px;margin:0 0 4px}
+  h3{font-size:14px;margin:26px 0 8px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold)}
+  code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-size:12px}
+  .metric{color:var(--gold);font-weight:700;font-variant-numeric:tabular-nums}
+
+  .rack{display:flex;gap:34px;flex-wrap:wrap;margin-top:24px;align-items:flex-start}
+  .col{width:390px}
+  .tag{display:inline-block;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+       color:var(--gold);border:1px solid rgba(243,201,105,.4);border-radius:999px;
+       padding:3px 10px;margin-bottom:8px}
+  .blurb{color:var(--muted);font-size:12.5px;line-height:1.5;margin:0 0 12px}
+
+  /* ---------- phone ---------- */
+  .phone{
+    position:relative;width:390px;height:844px;border-radius:34px;overflow:hidden;
+    background:var(--bg);border:1px solid rgba(255,255,255,.16);
+    box-shadow:0 22px 60px rgba(0,0,0,.55);
+    display:flex;flex-direction:column;
+  }
+
+  .topbar{
+    display:flex;align-items:center;gap:5px;padding:11px 10px 9px;
+    background:var(--panel-2);border-bottom:1px solid var(--line);flex:none;
+  }
+  .pchip{display:flex;align-items:center;gap:5px;padding:6px 9px;border-radius:999px;
+         background:rgba(255,255,255,.06);border:1px solid transparent;font-size:12.5px;flex:1;
+         justify-content:center;white-space:nowrap}
+  .pchip.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 22%,transparent)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+  .vp{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
+  .nm{font-weight:600}
+
+  .statusrow{display:flex;align-items:center;gap:9px;padding:8px 12px;flex:none;
+             background:var(--panel-2);border-bottom:1px solid var(--line)}
+  .turn{padding:3px 9px;border-radius:999px;background:var(--red);color:#10202c;
+        font-weight:700;font-size:11px;white-space:nowrap}
+  .turn.bot{background:var(--white);color:#243040}
+  .stxt{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* board takes all remaining height; sits slightly high in its area */
+  /* The board is width-bound on a 390px phone, so some sea is unavoidable.
+     Centring splits it evenly instead of dumping it all under the board. */
+  .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+         padding:8px 3px;
+         background:radial-gradient(circle at 50% 34%,#1b5177 0%,var(--sea) 55%,var(--bg) 100%);
+         position:relative}
+  .stage svg{width:100%;height:auto;display:block}
+
+  .dice{position:absolute;right:12px;bottom:10px;display:flex;gap:6px}
+  .die{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+       width:36px;height:36px;padding:5px;border-radius:7px;background:#f4ead6;
+       box-shadow:0 3px 8px rgba(0,0,0,.4)}
+  .die i{border-radius:50%;margin:auto;width:5.5px;height:5.5px}
+  .die i.o{background:#23303c}
+
+  /* ---------- bottom: three equal-spaced rows ---------- */
+  .dock{
+    flex:none;background:var(--panel);border-top:1px solid var(--line);
+    padding:11px 12px 14px;
+    display:grid;gap:11px;
+    /* Three fixed rows. Nothing here mounts or unmounts between turn states —
+       every slot is always present and dims in place. */
+    grid-template-rows:74px 62px 50px;
+  }
+
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+
+  /* left — fanned hand, leftmost card on TOP so every count badge stays visible */
+  .fan{display:flex;align-items:flex-end;padding:0 6px 6px 2px}
+  .rescard{
+    position:relative;width:54px;height:66px;border-radius:9px;background:#f2ead9;
+    border:1px solid rgba(0,0,0,.35);box-shadow:-3px 2px 6px rgba(0,0,0,.42);
+    display:flex;align-items:center;justify-content:center;font-size:24px;
+    margin-left:-22px;flex:none;
+  }
+  .rescard:first-child{margin-left:0}
+  .rescard .n{
+    position:absolute;right:-5px;bottom:-5px;min-width:21px;height:21px;padding:0 5px;
+    border-radius:999px;background:#23303c;color:#f4ead6;border:1.5px solid rgba(255,255,255,.3);
+    font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;
+    display:flex;align-items:center;justify-content:center;
+  }
+  /* A resource you hold none of keeps its slot — dashed, so positions never shift. */
+  .rescard.zero{background:rgba(255,255,255,.06);border-style:dashed;box-shadow:none;opacity:.45}
+  .rescard.zero .n{background:#1b2b39;color:var(--muted)}
+
+  /* right — dev card stack (three layers + count) */
+  .stackwrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none;padding-right:2px}
+  .stack{position:relative;width:52px;height:66px}
+  .stack .s{position:absolute;border-radius:9px}
+  .s1{inset:7px 0 0 7px;background:rgba(154,130,219,.14);border:1px solid rgba(154,130,219,.35)}
+  .s2{inset:3.5px 3.5px 3.5px 3.5px;background:rgba(154,130,219,.2);border:1px solid rgba(154,130,219,.5)}
+  .s3{inset:0 7px 7px 0;background:rgba(154,130,219,.32);border:1px solid var(--violet);
+      display:flex;align-items:center;justify-content:center;font-size:22px}
+  .stack .badge{position:absolute;right:-6px;bottom:1px;min-width:21px;height:21px;padding:0 5px;
+       border-radius:999px;background:var(--violet);color:#160f28;font-size:11.5px;font-weight:700;
+       display:flex;align-items:center;justify-content:center;border:1.5px solid rgba(255,255,255,.35)}
+  .cap{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+
+  /* row 2 — build (Option A) */
+  .buildrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .bbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+        border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.08);
+        padding:6px 2px}
+  .bbtn .ic{font-size:19px;line-height:1}
+  .bbtn .lb{font-size:11px;font-weight:600}
+  .bbtn .ct{font-size:9.5px;letter-spacing:.4px}
+  .bbtn.off{opacity:.4}
+  .bbtn.on{outline:2px solid var(--gold);background:rgba(255,217,119,.18)}
+
+  /* row 3 — roll / trade / end (Option A) */
+  .mainrow{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:8px}
+  .mbtn{display:flex;align-items:center;justify-content:center;gap:5px;border-radius:11px;
+        border:1px solid var(--line);background:rgba(255,255,255,.08);font-size:13px;font-weight:600}
+  .mbtn.roll{background:var(--gold);color:#1a2330;border-color:transparent;font-weight:700}
+  .mbtn.trade{background:rgba(63,184,175,.16);border-color:var(--teal);color:var(--teal-2);font-weight:700}
+  .mbtn.primary{background:var(--gold);color:#1a2330;border-color:transparent;font-weight:700}
+  .mbtn.off{opacity:.38}
+
+  .notes{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.6}
+  .notes b{color:var(--text)}
+
+  table{border-collapse:collapse;width:100%;max-width:760px;font-size:12.5px;margin-top:6px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--gold);font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+  td:first-child{color:var(--muted)}
+  ul{margin:6px 0 0;padding-left:19px;font-size:13px;line-height:1.65;color:var(--muted);max-width:76ch}
+  ul b{color:var(--text)}
+  .legend{margin-top:34px}
+  .callout{border-left:3px solid var(--gold);background:rgba(243,201,105,.07);
+           padding:11px 14px;border-radius:0 8px 8px 0;font-size:13px;line-height:1.6;
+           max-width:76ch;margin:10px 0 0;color:var(--muted)}
+  .callout b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<h1>Mobile HUD — mixed direction</h1>
+<p class="sub">
+  Option <b>A</b>'s bottom two rows, kept as-is. The left and right edge rails are gone — the board keeps
+  both its side edges and moves up. In their place, one more equal-spaced row at the bottom carries
+  <b>C</b>'s left-side resource cards (now fanned, leftmost on top, so every count badge stays readable)
+  and <b>B</b>'s dev-card stack on the right.
+</p>
+
+<div class="rack">
+
+  <!-- ================= STATE 1 : your turn ================= -->
+  <div class="col">
+    <span class="tag">Your turn — after the roll</span>
+    <h2>Mixed layout</h2>
+    <p class="blurb">Three fixed rows below the board: hand + cards, build, then roll/trade/end.</p>
+
+    <div class="phone">
+      <div class="topbar">
+        <span class="pchip on" style="--c:var(--red)"><span class="dot"></span><span class="nm">You</span><span class="vp">4/10</span></span>
+        <span class="pchip" style="--c:var(--blue)"><span class="dot"></span><span class="vp">3</span></span>
+        <span class="pchip" style="--c:var(--orange)"><span class="dot"></span><span class="vp">5</span></span>
+        <span class="pchip" style="--c:var(--white)"><span class="dot"></span><span class="vp">2</span></span>
+      </div>
+
+      <div class="statusrow">
+        <span class="turn">Your turn</span>
+        <span class="stxt">Rolled 9 — you got +2 grain.</span>
+      </div>
+
+      <div class="stage">
+        <svg viewBox="0 0 400 380" class="bd"></svg>
+        <div class="dice">
+          <div class="die"><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i></div>
+          <div class="die"><i></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i></div>
+        </div>
+      </div>
+
+      <div class="dock">
+        <!-- row 1 : fan + stack -->
+        <div class="row">
+          <div class="fan">
+            <div class="rescard" style="z-index:5">🧱<span class="n">1</span></div>
+            <div class="rescard zero" style="z-index:4">🌲<span class="n">0</span></div>
+            <div class="rescard" style="z-index:3">🐑<span class="n">2</span></div>
+            <div class="rescard" style="z-index:2">🌾<span class="n">3</span></div>
+            <div class="rescard zero" style="z-index:1">⛰️<span class="n">0</span></div>
+          </div>
+          <div class="stackwrap">
+            <div class="stack">
+              <div class="s s1"></div><div class="s s2"></div><div class="s s3">🃏</div>
+              <span class="badge">2</span>
+            </div>
+            <span class="cap">Cards</span>
+          </div>
+        </div>
+
+        <!-- row 2 : build (Option A) -->
+        <div class="buildrow">
+          <div class="bbtn"><span class="ic">🛣️</span><span class="lb">Road</span><span class="ct">🧱🌲</span></div>
+          <div class="bbtn"><span class="ic">🏠</span><span class="lb">Settle</span><span class="ct">🧱🌲🐑🌾</span></div>
+          <div class="bbtn off"><span class="ic">🏙️</span><span class="lb">City</span><span class="ct">🌾🌾⛰️⛰️⛰️</span></div>
+          <div class="bbtn"><span class="ic">🃏</span><span class="lb">Buy</span><span class="ct">🐑🌾⛰️</span></div>
+        </div>
+
+        <!-- row 3 : roll / trade / end (Option A) -->
+        <div class="mainrow">
+          <div class="mbtn off">🎲 Rolled ✓</div>
+          <div class="mbtn trade">Trade</div>
+          <div class="mbtn primary">End turn</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      Board <span class="metric">382 × 363 px — 42%</span> of the screen (30.7% before the rail work, 3.4% on the current build)<br>
+      <b>+</b> both side edges of the board are free; nothing overlaps the hexes.<br>
+      <b>+</b> every resource count and the card count readable without a tap.
+    </div>
+  </div>
+
+  <!-- ================= STATE 2 : bot's turn ================= -->
+  <div class="col">
+    <span class="tag">Bot's turn — same pixels</span>
+    <h2>Nothing moves</h2>
+    <p class="blurb">Every slot is still present, just dimmed. Overlay this on the left phone and no control shifts by a pixel.</p>
+
+    <div class="phone">
+      <div class="topbar">
+        <span class="pchip" style="--c:var(--red)"><span class="dot"></span><span class="vp">4</span></span>
+        <span class="pchip" style="--c:var(--blue)"><span class="dot"></span><span class="vp">3</span></span>
+        <span class="pchip" style="--c:var(--orange)"><span class="dot"></span><span class="vp">5</span></span>
+        <span class="pchip on" style="--c:var(--white)"><span class="dot"></span><span class="nm">Bot 3</span><span class="vp">2/10</span></span>
+      </div>
+
+      <div class="statusrow">
+        <span class="turn bot">Bot 3</span>
+        <span class="stxt">Bot 3 built a settlement.</span>
+      </div>
+
+      <div class="stage">
+        <svg viewBox="0 0 400 380" class="bd"></svg>
+        <div class="dice">
+          <div class="die"><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i></div>
+          <div class="die"><i></i><i></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+
+      <div class="dock">
+        <div class="row">
+          <!-- still YOUR hand, never the bot's -->
+          <div class="fan">
+            <div class="rescard" style="z-index:5">🧱<span class="n">1</span></div>
+            <div class="rescard zero" style="z-index:4">🌲<span class="n">0</span></div>
+            <div class="rescard" style="z-index:3">🐑<span class="n">2</span></div>
+            <div class="rescard" style="z-index:2">🌾<span class="n">3</span></div>
+            <div class="rescard zero" style="z-index:1">⛰️<span class="n">0</span></div>
+          </div>
+          <div class="stackwrap">
+            <div class="stack">
+              <div class="s s1"></div><div class="s s2"></div><div class="s s3">🃏</div>
+              <span class="badge">2</span>
+            </div>
+            <span class="cap">Cards</span>
+          </div>
+        </div>
+
+        <div class="buildrow">
+          <div class="bbtn off"><span class="ic">🛣️</span><span class="lb">Road</span><span class="ct">🧱🌲</span></div>
+          <div class="bbtn off"><span class="ic">🏠</span><span class="lb">Settle</span><span class="ct">🧱🌲🐑🌾</span></div>
+          <div class="bbtn off"><span class="ic">🏙️</span><span class="lb">City</span><span class="ct">🌾🌾⛰️⛰️⛰️</span></div>
+          <div class="bbtn off"><span class="ic">🃏</span><span class="lb">Buy</span><span class="ct">🐑🌾⛰️</span></div>
+        </div>
+
+        <div class="mainrow">
+          <div class="mbtn off">🎲 Roll</div>
+          <div class="mbtn trade off">Trade</div>
+          <div class="mbtn primary off">End turn</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <b>The fix that matters.</b> Today the dev row and build buttons are fed the
+      <b>current</b> player, so during three bot turns they swap to the bot's cards and the bot's
+      affordability every 700 ms — that churn is the blinking. Here they stay yours and only dim.
+    </div>
+  </div>
+
+</div>
+
+<div class="legend">
+
+  <h3>What each part came from</h3>
+  <table>
+    <tr><th>Region</th><th>Source</th><th>Change from that option</th></tr>
+    <tr><td>Build row</td><td>A — Edge rails</td><td>Unchanged: Road / Settle / City / Buy, icon + name + cost</td></tr>
+    <tr><td>Roll / Trade / End</td><td>A — Edge rails</td><td>Roll joins the row as a permanent third slot instead of replacing the others</td></tr>
+    <tr><td>Hand, bottom-left</td><td>C — Corner pods</td><td>All 5 slots instead of 3; fanned with explicit z-order so counts never hide</td></tr>
+    <tr><td>Card stack, bottom-right</td><td>B — Left rail + thumb</td><td>Moved from the right edge into the bottom row</td></tr>
+    <tr><td>Side rails</td><td>—</td><td>Dropped. The board gets both edges back.</td></tr>
+  </table>
+
+  <h3>The fan, precisely</h3>
+  <div class="callout">
+    Cards overlap by <b>22 px</b> of a <b>54 px</b> card, and <b>z-index runs 5 → 1 left to right</b>, so each
+    card covers the <i>left</i> edge of the one after it. Count badges sit bottom-right, which is the part that
+    stays exposed — all five numbers are readable at once. Five cards occupy 182 px, leaving the stack and its
+    label the right half of the row. A resource you hold none of keeps its slot as a dashed card showing
+    <code>0</code>, so the fan never re-flows as your hand changes.
+  </div>
+
+  <h3>Fixed-slot rules this layout commits to</h3>
+  <ul>
+    <li><b>Every control is always mounted.</b> Roll does not swap out for the build buttons — it dims to
+      "Rolled ✓" in place. Trade and End turn dim rather than disappear.</li>
+    <li><b>The dock's three rows have fixed heights</b> (<code>grid-template-rows:74px 62px 50px</code>), so
+      the board's height is a constant and never re-measures mid-turn.</li>
+    <li><b>The dock always shows you, never the active player.</b> Hand, cards and build affordability read
+      from your seat, so a bot's turn changes nothing but the dimming and the status line.</li>
+    <li><b>Zero-count resources hold their slot</b> as dashed cards, so positions are stable from turn one.</li>
+    <li><b>Dice stay anchored to the board's bottom-right</b> and are the one thing that appears and
+      disappears — over the board, not in the dock, so no reflow.</li>
+  </ul>
+
+  <h3>Open questions</h3>
+  <ul>
+    <li>Tapping the stack opens the card tray as a bottom sheet — should the tray push the board up, or float over it? Floating keeps the "board never resizes" rule intact.</li>
+    <li>Bank supply is not in this dock at all. Proposal: move it behind the existing <code>?</code> guide, since it is reference data rather than a per-turn input.</li>
+    <li>Public-hands mode shows four hands. Does the fan become four smaller fans, or does it open as a sheet?</li>
+    <li>In landscape, the three dock rows become a right-hand column of the same three groups — worth confirming before build.</li>
+  </ul>
+</div>
+
+<script>
+// A real 19-hex board so the mock reads as this product, not a grey box.
+const LAYOUT=[3,4,5,4,3];
+const FILL={l:'#2f6b3a',b:'#b0563a',w:'#8dbc5c',g:'#e2ba34',o:'#7a8794',d:'#dcc79a'};
+const ICON={l:'🌲',b:'🧱',w:'🐑',g:'🌾',o:'⛰️',d:'🏜️'};
+const TYPES='obwgldwgobwglgbwogl'.split('');
+const NUMS=[10,2,9,12,6,4,10,9,11,undefined,3,8,8,3,4,5,5,6,11];
+const R=38, dx=Math.sqrt(3)*R, dy=1.5*R;
+
+function pips(n){return n===undefined?0:6-Math.abs(7-n)}
+function numColor(n){return (n===6||n===8)?'#b3261e':'#3b3226'}
+
+document.querySelectorAll('svg.bd').forEach(svg=>{
+  let out='', i=0;
+  LAYOUT.forEach((count,row)=>{
+    const y=64+row*dy;
+    const x0=200-(count-1)*dx/2;
+    for(let c=0;c<count;c++,i++){
+      const x=x0+c*dx, t=TYPES[i], n=NUMS[i];
+      const pts=[];
+      for(let k=0;k<6;k++){
+        const a=Math.PI/180*(60*k-90);
+        pts.push((x+R*Math.cos(a)).toFixed(1)+','+(y+R*Math.sin(a)).toFixed(1));
+      }
+      out+=`<polygon points="${pts.join(' ')}" fill="${FILL[t]}" stroke="#0f2a3d" stroke-width="2"/>`;
+      out+=`<text x="${x}" y="${y-12}" text-anchor="middle" font-size="19"
+             style="filter:drop-shadow(1px 0 0 #0f2a3d) drop-shadow(-1px 0 0 #0f2a3d) drop-shadow(0 1px 0 #0f2a3d) drop-shadow(0 -1px 0 #0f2a3d)">${ICON[t]}</text>`;
+      if(n!==undefined){
+        out+=`<circle cx="${x}" cy="${y+9}" r="14.5" fill="#f4ead6" stroke="#0f2a3d" stroke-width="1.6"/>`;
+        if(n===6||n===8) out+=`<circle cx="${x}" cy="${y+9}" r="12.4" fill="none" stroke="#b3261e" stroke-width="1.2"/>`;
+        out+=`<text x="${x}" y="${y+12}" text-anchor="middle" font-size="14.5" font-weight="700" fill="${numColor(n)}">${n}</text>`;
+        const p=pips(n);
+        for(let k=0;k<p;k++){
+          out+=`<circle cx="${x+(k-(p-1)/2)*5.6}" cy="${y+18.5}" r="2.5" fill="${numColor(n)}"/>`;
+        }
+      }
+    }
+  });
+  // a couple of pieces so the board is not empty
+  out+=`<line x1="${200-dx/2}" y1="102" x2="200" y2="83" stroke="#0c1a24" stroke-width="12" stroke-linecap="round"/>`;
+  out+=`<line x1="${200-dx/2}" y1="102" x2="200" y2="83" stroke="#e2483c" stroke-width="8" stroke-linecap="round"/>`;
+  out+=`<polygon points="-7,6 -7,-2 0,-9 7,-2 7,6" transform="translate(200 83)" fill="#e2483c" stroke="#8d1f17" stroke-width="2.2" stroke-linejoin="round"/>`;
+  out+=`<polygon points="-7,6 -7,-2 0,-9 7,-2 7,6" transform="translate(${200+dx} 197)" fill="#3d7fd6" stroke="#1c4682" stroke-width="2.2" stroke-linejoin="round"/>`;
+  svg.innerHTML=out;
+});
+</script>
+</body>
+</html>
