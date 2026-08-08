@@ -4,7 +4,6 @@ import BoardView from './components/Board'
 import Lobby, { WaitingRoom } from './components/Lobby'
 import {
   ActionBar,
-  BankSupply,
   BuildGuide,
   DevBar,
   DevCardGuide,
@@ -383,8 +382,10 @@ export default function App() {
   return (
     <div className="app" style={{ '--turn-color': current.color } as React.CSSProperties}>
       <header className="topbar">
-        <SettingsChip settings={state.settings} botPresets={botPresets} />
-        <h1 className="topbar__title">Catan</h1>
+        <div className="topbar__left">
+          <SettingsChip settings={state.settings} botPresets={botPresets} />
+          <h1 className="topbar__title">Catan</h1>
+        </div>
         <PlayerStrip
           players={state.players}
           current={currentId}
@@ -392,31 +393,33 @@ export default function App() {
           longestRoad={longestRoad}
           vpTarget={state.settings.vpTarget}
         />
-        <button
-          className="btn btn--ghost btn--icon-only"
-          onClick={() => setShowGuide(true)}
-          title="What things cost"
-          aria-label="Cost guide — what each piece and card costs"
-        >
-          ?
-        </button>
-        <button
-          className="btn btn--ghost"
-          onClick={() => {
-            clearSaved()
-            leave()
-          }}
-        >
-          New game
-        </button>
+        <div className="topbar__actions">
+          <button
+            className="btn btn--ghost btn--icon-only"
+            onClick={() => setShowGuide(true)}
+            title="What things cost"
+            aria-label="Cost guide — what each piece and card costs"
+          >
+            ?
+          </button>
+          <button
+            className="btn btn--ghost topbar__new-game"
+            onClick={() => {
+              clearSaved()
+              leave()
+            }}
+          >
+            New game
+          </button>
+        </div>
       </header>
 
-      {showGuide && <BuildGuide onClose={() => setShowGuide(false)} />}
+      {showGuide && <BuildGuide onClose={() => setShowGuide(false)} bank={state.bank} />}
 
       {winner && endView === 'scores' && (
-        <div className="modal">
+        <div className="modal" role="dialog" aria-modal="true" aria-labelledby="winner-dialog-title">
           <div className="modal__panel">
-            <h2 className="modal__title">🏆 {winner.name} wins!</h2>
+            <h2 id="winner-dialog-title" className="modal__title">🏆 {winner.name} wins!</h2>
             <div className="modal__tabs">
               <button className="btn btn--ghost btn--on" disabled>
                 Scores
@@ -589,106 +592,101 @@ export default function App() {
         />
       )}
 
-      <main className="stage">
-        <div
-          className="board-frame"
-          style={{ aspectRatio: `${state.board.bounds.width} / ${state.board.bounds.height}` }}
-        >
-          <BoardView
-            board={state.board}
-            players={state.players}
-            robberTile={state.robberTile}
-            vertexTargets={myTurn ? vertexTargets : new Set()}
-            edgeTargets={myTurn ? edgeTargets : new Set()}
-            tileTargets={myTurn && state.mode === 'robber'}
-            rolledSum={state.dice ? state.dice[0] + state.dice[1] : null}
-            santaMode={state.settings.santaMode}
-            onVertex={(id) => dispatch({ type: 'vertex', id })}
-            onEdge={(id) => dispatch({ type: 'edge', id })}
-            onTile={(id) => dispatch({ type: 'tile', id })}
-          />
-          {state.phase === 'play' && state.hasRolled && (
-            <Dice dice={state.dice} rolling={rolling} />
-          )}
-        </div>
-      </main>
-
-      <div className="turnbar">
-        <span className="turnpill">
-          {myTurn && seat !== null ? 'Your turn' : `${current.name}'s turn`}
-        </span>
-        <span className="status">{winner ? `${winner.name} wins!` : state.message}</span>
-      </div>
-
-      <footer className="dock">
-        <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start', flexWrap: 'wrap', flex: '1 1 auto' }}>
-          <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', opacity: 0.7 }}>
-              Your hand
-            </div>
-            {state.settings.publicHands ? (
-              <div style={{ display: 'flex', gap: '1rem', overflow: 'auto', paddingRight: '1rem' }}>
-                {state.players.map((p) => (
-                  <div key={p.id} style={{ flex: '0 0 auto', minWidth: '150px' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                      {p.name}
-                    </div>
-                    <HandBar player={p} rates={state.phase === 'play' ? rates : undefined} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <HandBar player={viewed} rates={state.phase === 'play' ? rates : undefined} />
+      <div className="game-layout">
+        <main className="stage">
+          <div
+            className="board-frame"
+            style={{ aspectRatio: `${state.board.bounds.width} / ${state.board.bounds.height}` }}
+          >
+            <BoardView
+              board={state.board}
+              players={state.players}
+              robberTile={state.robberTile}
+              vertexTargets={myTurn ? vertexTargets : new Set()}
+              edgeTargets={myTurn ? edgeTargets : new Set()}
+              tileTargets={myTurn && state.mode === 'robber'}
+              rolledSum={state.dice ? state.dice[0] + state.dice[1] : null}
+              santaMode={state.settings.santaMode}
+              onVertex={(id) => dispatch({ type: 'vertex', id })}
+              onEdge={(id) => dispatch({ type: 'edge', id })}
+              onTile={(id) => dispatch({ type: 'tile', id })}
+            />
+            {state.phase === 'play' && state.hasRolled && (
+              <Dice dice={state.dice} rolling={rolling} />
             )}
           </div>
+        </main>
 
-          <div style={{ flex: '0 1 auto' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', opacity: 0.7 }}>
-              Bank supply
-            </div>
-            <BankSupply bank={state.bank} />
+        <div className="sidebar-rail">
+          <div className="turnbar">
+            <span className="turnpill">
+              {myTurn && seat !== null ? 'Your turn' : `${current.name}'s turn`}
+            </span>
+            <span className="status">{winner ? `${winner.name} wins!` : state.message}</span>
           </div>
+
+          <footer className="dock">
+            <div className="dock__hand-section">
+              <div className="dock__section-title">
+                {state.settings.publicHands ? 'Hands' : 'Your hand'}
+              </div>
+              {state.settings.publicHands ? (
+                <div className="dock__public-hands">
+                  {state.players.map((p) => (
+                    <div key={p.id} className="dock__player-hand">
+                      <div className="dock__hand-owner">
+                        {p.name}
+                      </div>
+                      <HandBar player={p} rates={state.phase === 'play' ? rates : undefined} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <HandBar player={viewed} rates={state.phase === 'play' ? rates : undefined} />
+              )}
+            </div>
+
+            {myTurn && state.phase === 'play' && state.hasRolled && state.mode !== 'robber' && (
+              <TradeBar
+                player={current}
+                rates={rates}
+                onTrade={(give, get) => dispatch({ type: 'bankTrade', give, get })}
+              />
+            )}
+
+            {myTurn && state.phase === 'play' && state.hasRolled && (
+              <DevBar
+                player={current}
+                deckCount={state.deck.length}
+                busy={
+                  state.mode === 'robber' ||
+                  state.freeRoads > 0 ||
+                  state.picking !== null ||
+                  state.merchant !== null
+                }
+                playedThisTurn={state.playedDev}
+                onBuy={() => dispatch({ type: 'buyDev' })}
+                onPlay={(card) => setConfirmCard(card)}
+                onGuide={() => setShowCardGuide(true)}
+              />
+            )}
+
+            {myTurn && state.phase === 'play' && (
+              <ActionBar
+                player={current}
+                mode={state.mode}
+                hasRolled={state.hasRolled}
+                onBuild={(kind: BuildKind) => dispatch({ type: 'setMode', mode: kind })}
+                onRoll={roll}
+                onEndTurn={() => dispatch({ type: 'endTurn' })}
+                onCancel={() => dispatch({ type: 'setMode', mode: null })}
+                canOffer={state.players.length > 1}
+                onOffer={() => setComposingOffer(true)}
+              />
+            )}
+          </footer>
         </div>
-
-        {myTurn && state.phase === 'play' && state.hasRolled && state.mode !== 'robber' && (
-          <TradeBar
-            player={current}
-            rates={rates}
-            onTrade={(give, get) => dispatch({ type: 'bankTrade', give, get })}
-          />
-        )}
-
-        {myTurn && state.phase === 'play' && state.hasRolled && (
-          <DevBar
-            player={current}
-            deckCount={state.deck.length}
-            busy={
-              state.mode === 'robber' ||
-              state.freeRoads > 0 ||
-              state.picking !== null ||
-              state.merchant !== null
-            }
-            playedThisTurn={state.playedDev}
-            onBuy={() => dispatch({ type: 'buyDev' })}
-            onPlay={(card) => setConfirmCard(card)}
-            onGuide={() => setShowCardGuide(true)}
-          />
-        )}
-
-        {myTurn && state.phase === 'play' && (
-          <ActionBar
-            player={current}
-            mode={state.mode}
-            hasRolled={state.hasRolled}
-            onBuild={(kind: BuildKind) => dispatch({ type: 'setMode', mode: kind })}
-            onRoll={roll}
-            onEndTurn={() => dispatch({ type: 'endTurn' })}
-            onCancel={() => dispatch({ type: 'setMode', mode: null })}
-            canOffer={state.players.length > 1}
-            onOffer={() => setComposingOffer(true)}
-          />
-        )}
-      </footer>
+      </div>
     </div>
   )
 }

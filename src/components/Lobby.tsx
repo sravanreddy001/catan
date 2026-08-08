@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { GameSettings } from '../game/engine'
 import type { AIPreset } from '../game/ai'
 import { PALETTE } from '../game/players'
@@ -35,6 +35,7 @@ function ColorPicker({
           style={{ '--c': swatch.color } as React.CSSProperties}
           disabled={taken.includes(i) && value !== i}
           title={swatch.name}
+          aria-label={`Select color ${swatch.name}`}
           onClick={() => onPick(i)}
         />
       ))}
@@ -62,19 +63,26 @@ export default function Lobby({
   const [speedMode, setSpeedMode] = useState(false)
   const [newDevCards, setNewDevCards] = useState(false)
   const [botPresets, setBotPresets] = useState<Record<number, AIPreset>>({})
-  const presetLabels: Record<string, string> = {
-    aggressive: 'Aggressive (targets leader, plays hard)',
-    economic: 'Economic (builds cities, trades often)',
-    turtle: 'Turtle (spreads settlements, avoids fights)',
-    'null': 'Default (today\'s usual bot)',
-  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (screen === 'offline') setScreen('mode')
+        else if (screen === 'offline-color') setScreen('offline')
+        else if (screen === 'offline-presets') setScreen('offline-color')
+        else if (screen === 'online' || screen === 'join') setScreen('mode')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [screen])
 
   return (
-    <div className="modal">
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="lobby-dialog-title">
       <div className="modal__panel">
         {screen === 'mode' && (
           <>
-            <h2 className="modal__title">Catan</h2>
+            <h2 id="lobby-dialog-title" className="modal__title">Catan</h2>
             <button className="lobby__count" onClick={() => setScreen('offline')}>
               Play offline
               <small>you against AI opponents</small>
@@ -84,7 +92,7 @@ export default function Lobby({
               <small>share a code, everyone on their own phone</small>
             </button>
             {resumable && (
-              <button className="btn" onClick={onResume}>
+              <button className="btn btn--primary" onClick={onResume} style={{ marginTop: '0.5rem' }}>
                 Resume saved game
               </button>
             )}
@@ -93,7 +101,7 @@ export default function Lobby({
 
         {screen === 'offline' && (
           <>
-            <h2 className="modal__title">How many opponents?</h2>
+            <h2 id="lobby-dialog-title" className="modal__title">How many opponents?</h2>
             <div className="lobby__counts">
               {[1, 2, 3].map((n) => (
                 <button
@@ -117,92 +125,100 @@ export default function Lobby({
 
         {screen === 'offline-color' && (
           <>
-            <h2 className="modal__title">Pick your color</h2>
+            <h2 id="lobby-dialog-title" className="modal__title">Pick your color</h2>
             <ColorPicker value={color} onPick={setColor} />
             <p className="lobby__hint">Opponents take the remaining colors.</p>
 
-            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
-              <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem' }}>Game settings</h3>
+            <div className="settings-section">
+              <h3 className="settings-section__title">Game settings</h3>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+              <label className="checkbox-row">
                 <input
                   type="checkbox"
+                  className="custom-checkbox"
                   checked={publicHands}
                   onChange={(e) => setPublicHands(e.target.checked)}
                 />
-                Public hands (see all players' cards)
+                <span>Public hands (see all players' cards)</span>
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+              <label className="checkbox-row">
                 <input
                   type="checkbox"
+                  className="custom-checkbox"
                   checked={santaMode}
                   onChange={(e) => setSantaMode(e.target.checked)}
                 />
-                Santa mode (friendly variant, no robber)
+                <span>Santa mode (friendly variant, no robber)</span>
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+              <label className="checkbox-row">
                 <input
                   type="checkbox"
+                  className="custom-checkbox"
                   checked={speedMode}
                   onChange={(e) => setSpeedMode(e.target.checked)}
                 />
-                Speed mode (auto-placed setup, 2 rolls per turn)
+                <span>Speed mode (auto setup, 2 rolls per turn)</span>
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+              <label className="checkbox-row">
                 <input
                   type="checkbox"
+                  className="custom-checkbox"
                   checked={newDevCards}
                   onChange={(e) => setNewDevCards(e.target.checked)}
                 />
-                New dev cards (Merchant, Trailblazer, Diplomat, Merit — fewer knights)
+                <span>New dev cards (Merchant, Trailblazer, Diplomat, Merit)</span>
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-                <span>VP target:</span>
+              <div className="select-row">
+                <label htmlFor="vp-target-select">VP target:</label>
                 <select
+                  id="vp-target-select"
+                  className="custom-select"
                   value={vpTarget}
                   onChange={(e) => setVpTarget(Number(e.target.value))}
-                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
                 >
                   <option value={8}>8</option>
                   <option value={10}>10 (standard)</option>
                   <option value={12}>12</option>
                   <option value={15}>15</option>
                 </select>
-              </label>
+              </div>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', marginTop: '0.75rem' }}>
-                <span>Bank preset:</span>
+              <div className="select-row">
+                <label htmlFor="bank-preset-select">Bank preset:</label>
                 <select
+                  id="bank-preset-select"
+                  className="custom-select"
                   value={bankPreset}
                   onChange={(e) => setBankPreset(e.target.value as 'standard' | 'scarce' | 'veryScarce')}
-                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
                 >
                   <option value="standard">Standard (19)</option>
                   <option value="scarce">Scarce (12)</option>
                   <option value="veryScarce">Very Scarce (9)</option>
                 </select>
-              </label>
+              </div>
 
               {bankPreset !== 'standard' && (
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                <p className="settings-note">
                   Note: Scarce bank means trading more often — resources run dry faster.
                 </p>
               )}
             </div>
 
-            <button className="btn btn--primary" onClick={() => {
-              // Initialize bot presets for the number of opponents
-              const newPresets: Record<number, AIPreset> = {}
-              for (let i = 1; i <= opponents; i++) {
-                newPresets[i] = null // Start with default
-              }
-              setBotPresets(newPresets)
-              setScreen('offline-presets')
-            }}>
+            <button
+              className="btn btn--primary"
+              onClick={() => {
+                const newPresets: Record<number, AIPreset> = {}
+                for (let i = 1; i <= opponents; i++) {
+                  newPresets[i] = null
+                }
+                setBotPresets(newPresets)
+                setScreen('offline-presets')
+              }}
+            >
               Next: AI personalities
             </button>
             <button className="btn" onClick={() => setScreen('offline')}>
@@ -213,39 +229,49 @@ export default function Lobby({
 
         {screen === 'offline-presets' && (
           <>
-            <h2 className="modal__title">AI personalities</h2>
-            <p className="lobby__hint">Customize each bot's playstyle, or skip for the default.</p>
+            <h2 id="lobby-dialog-title" className="modal__title">AI personalities</h2>
+            <p className="lobby__hint">Customize each bot's playstyle, or keep defaults.</p>
 
-            {Array.from({ length: opponents }).map((_, i) => {
-              const botSeat = i + 1
-              const preset = botPresets[botSeat] ?? null
-              return (
-                <div key={botSeat} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-                  <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, marginBottom: '0.5rem' }}>
-                    Bot {botSeat}:
-                  </label>
-                  <select
-                    value={preset ?? 'null'}
-                    onChange={(e) => {
-                      const value = e.target.value === 'null' ? null : (e.target.value as AIPreset)
-                      setBotPresets({ ...botPresets, [botSeat]: value })
-                    }}
-                    style={{ padding: '0.5rem', fontSize: '0.85rem', width: '100%' }}
-                  >
-                    <option value="null">Default (today's usual bot)</option>
-                    <option value="aggressive">Aggressive</option>
-                    <option value="economic">Economic</option>
-                    <option value="turtle">Turtle</option>
-                  </select>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', fontStyle: 'italic' }}>
-                    {presetLabels[preset ?? 'null']}
-                  </p>
-                </div>
-              )
-            })}
+            <div className="settings-section">
+              {Array.from({ length: opponents }).map((_, i) => {
+                const botSeat = i + 1
+                const preset = botPresets[botSeat] ?? null
+                return (
+                  <div key={botSeat} className="bot-preset-row">
+                    <label htmlFor={`bot-${botSeat}-select`} className="bot-preset-label">
+                      Bot {botSeat}:
+                    </label>
+                    <select
+                      id={`bot-${botSeat}-select`}
+                      className="custom-select"
+                      value={preset ?? 'null'}
+                      onChange={(e) => {
+                        const value = e.target.value === 'null' ? null : (e.target.value as AIPreset)
+                        setBotPresets({ ...botPresets, [botSeat]: value })
+                      }}
+                    >
+                      <option value="null">Default (balanced)</option>
+                      <option value="aggressive">Aggressive (targets leader, plays hard)</option>
+                      <option value="economic">Economic (builds cities, trades often)</option>
+                      <option value="turtle">Turtle (spreads settlements, avoids fights)</option>
+                    </select>
+                  </div>
+                )
+              })}
+            </div>
 
-            <button className="btn btn--primary" onClick={() => onOffline(opponents, color, { publicHands, vpTarget, bankPreset, santaMode, speedMode, newDevCards }, botPresets)}>
-              Start
+            <button
+              className="btn btn--primary"
+              onClick={() =>
+                onOffline(
+                  opponents,
+                  color,
+                  { publicHands, vpTarget, bankPreset, santaMode, speedMode, newDevCards },
+                  botPresets,
+                )
+              }
+            >
+              Start Game
             </button>
             <button className="btn" onClick={() => setScreen('offline-color')}>
               Back
@@ -255,7 +281,7 @@ export default function Lobby({
 
         {screen === 'join' && (
           <>
-            <h2 className="modal__title">Join room {code}</h2>
+            <h2 id="lobby-dialog-title" className="modal__title">Join room {code}</h2>
             <input
               className="field"
               placeholder="Your name"
@@ -280,7 +306,7 @@ export default function Lobby({
 
         {screen === 'online' && (
           <>
-            <h2 className="modal__title">Play online</h2>
+            <h2 id="lobby-dialog-title" className="modal__title">Play online</h2>
             <input
               className="field"
               placeholder="Your name"
@@ -343,6 +369,14 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
   const [speedMode, setSpeedMode] = useState(settings.speedMode)
   const [newDevCards, setNewDevCards] = useState(settings.newDevCards)
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel])
+
   async function copy(what: 'code' | 'link') {
     try {
       await navigator.clipboard.writeText(what === 'code' ? code : joinUrl(code))
@@ -354,9 +388,9 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
   }
 
   return (
-    <div className="modal">
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="waiting-dialog-title">
       <div className="modal__panel">
-        <h2 className="modal__title">Room {code}</h2>
+        <h2 id="waiting-dialog-title" className="modal__title">Room {code}</h2>
         <div className="modal__actions">
           <button className="btn" onClick={() => copy('code')}>
             {copied === 'code' ? 'Copied ✓' : 'Copy code'}
@@ -383,74 +417,80 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
         <p className="lobby__hint">{status}</p>
 
         {isHost && (
-          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
-            <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem' }}>Game settings</h3>
+          <div className="settings-section">
+            <h3 className="settings-section__title">Game settings</h3>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+            <label className="checkbox-row">
               <input
                 type="checkbox"
+                className="custom-checkbox"
                 checked={publicHands}
                 onChange={(e) => setPublicHands(e.target.checked)}
               />
-              Public hands (see all players' cards)
+              <span>Public hands (see all players' cards)</span>
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+            <label className="checkbox-row">
               <input
                 type="checkbox"
+                className="custom-checkbox"
                 checked={santaMode}
                 onChange={(e) => setSantaMode(e.target.checked)}
               />
-              Santa mode (friendly variant, no robber)
+              <span>Santa mode (friendly variant, no robber)</span>
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+            <label className="checkbox-row">
               <input
                 type="checkbox"
+                className="custom-checkbox"
                 checked={speedMode}
                 onChange={(e) => setSpeedMode(e.target.checked)}
               />
-              Speed mode (auto-placed setup, 2 rolls per turn)
+              <span>Speed mode (auto setup, 2 rolls per turn)</span>
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+            <label className="checkbox-row">
               <input
                 type="checkbox"
+                className="custom-checkbox"
                 checked={newDevCards}
                 onChange={(e) => setNewDevCards(e.target.checked)}
               />
-              New dev cards (Merchant, Trailblazer, Diplomat, Merit — fewer knights)
+              <span>New dev cards (Merchant, Trailblazer, Diplomat, Merit)</span>
             </label>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
-              <span>VP target:</span>
+            <div className="select-row">
+              <label htmlFor="waiting-vp-target">VP target:</label>
               <select
+                id="waiting-vp-target"
+                className="custom-select"
                 value={vpTarget}
                 onChange={(e) => setVpTarget(Number(e.target.value))}
-                style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
               >
                 <option value={8}>8</option>
                 <option value={10}>10 (standard)</option>
                 <option value={12}>12</option>
                 <option value={15}>15</option>
               </select>
-            </label>
+            </div>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', marginTop: '0.75rem' }}>
-              <span>Bank preset:</span>
+            <div className="select-row">
+              <label htmlFor="waiting-bank-preset">Bank preset:</label>
               <select
+                id="waiting-bank-preset"
+                className="custom-select"
                 value={bankPreset}
                 onChange={(e) => setBankPreset(e.target.value as 'standard' | 'scarce' | 'veryScarce')}
-                style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
               >
                 <option value="standard">Standard (19)</option>
                 <option value="scarce">Scarce (12)</option>
                 <option value="veryScarce">Very Scarce (9)</option>
               </select>
-            </label>
+            </div>
 
             {bankPreset !== 'standard' && (
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+              <p className="settings-note">
                 Note: Scarce bank means trading more often — resources run dry faster.
               </p>
             )}

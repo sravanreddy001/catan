@@ -51,6 +51,21 @@ function pipCount(n: number): number {
   return 6 - Math.abs(7 - n)
 }
 
+/** The local player is seated under the name "You", so "You's road" needs care. */
+function possessive(name: string): string {
+  return name === 'You' ? 'Your' : `${name}'s`
+}
+
+/** Spoken tile names. The visible label is an emoji, which reads as nothing. */
+const TILE_NAME: Record<TileType, string> = {
+  lumber: 'Forest',
+  brick: 'Hills',
+  wool: 'Pasture',
+  grain: 'Fields',
+  ore: 'Mountains',
+  desert: 'Desert',
+}
+
 export default function Board({
   board,
   players,
@@ -70,11 +85,15 @@ export default function Board({
     players.find((p) => p.settlements.includes(id) || p.cities.includes(id))
   const ownerOfEdge = (id: string) => players.find((p) => p.roads.includes(id))
 
+  // role="group", not "img": img collapses every child, which hid all 19
+  // tiles, 54 vertices and every road behind the single string "Catan board".
+  // Labels below are aria-label rather than <title> so nothing gains a hover
+  // tooltip.
   return (
     <svg
       className="board"
       viewBox={`${minX} ${minY} ${width} ${height}`}
-      role="img"
+      role="group"
       aria-label="Catan board"
     >
       <g>
@@ -89,6 +108,16 @@ export default function Board({
                 t.number === rolledSum ? ' tile--rolled' : ''
               }`}
               onClick={tileTargets ? () => onTile(t.id) : undefined}
+              role={tileTargets ? 'button' : 'img'}
+              aria-label={[
+                TILE_NAME[t.type],
+                t.number === undefined ? null : `rolls on ${t.number}`,
+                t.number === undefined ? null : `${pipCount(t.number)} of 36`,
+                t.id === robberTile && !santaMode ? 'blocked by the robber' : null,
+                tileTargets ? 'move the robber here' : null,
+              ]
+                .filter(Boolean)
+                .join(', ')}
             >
               <polygon points={points} fill={TILE_FILL[t.type]} stroke="#0f2a3d" strokeWidth={2} />
               <text className="tile__icon" x={t.cx} y={t.cy - 20} textAnchor="middle">
@@ -96,24 +125,33 @@ export default function Board({
               </text>
               {t.number !== undefined && (
                 <g>
-                  <circle cx={t.cx} cy={t.cy + 12} r={17} fill="#f4ead6" stroke="#0f2a3d" />
+                  <circle cx={t.cx} cy={t.cy + 13} r={21} fill="#f4ead6" stroke="#0f2a3d" strokeWidth={2} />
+                  {(t.number === 6 || t.number === 8) && (
+                    <circle
+                      cx={t.cx}
+                      cy={t.cy + 13}
+                      r={18}
+                      fill="none"
+                      stroke="#b3261e"
+                      strokeWidth={1.5}
+                    />
+                  )}
                   <text
                     className="tile__number"
                     x={t.cx}
-                    y={t.cy + 15}
+                    y={t.cy + 16}
                     textAnchor="middle"
                     fill={numberColor(t.number)}
                   >
                     {t.number}
                   </text>
-                  {/* Drawn as circles rather than text: bullet glyphs got
-                      clipped at five pips. */}
+                  {/* Probability pips: enlarged and spaced for legibility without relying on color */}
                   {Array.from({ length: pipCount(t.number) }, (_, i) => (
                     <circle
                       key={i}
-                      cx={t.cx + (i - (pipCount(t.number!) - 1) / 2) * 6}
-                      cy={t.cy + 24}
-                      r={2.4}
+                      cx={t.cx + (i - (pipCount(t.number!) - 1) / 2) * 8.5}
+                      cy={t.cy + 26}
+                      r={3.8}
                       fill={numberColor(t.number!)}
                     />
                   ))}
@@ -131,7 +169,8 @@ export default function Board({
         const tile = board.tiles.find((t) => t.id === robberTile)
         if (!tile) return null
         return (
-          <g className="robber" pointerEvents="none">
+          /* aria-hidden: the blocked tile already says so in its own label. */
+          <g className="robber" pointerEvents="none" aria-hidden="true">
             <circle
               cx={tile.cx - 22}
               cy={tile.cy - 14}
@@ -152,15 +191,24 @@ export default function Board({
         {board.ports.map((p) => {
           const [va, vb] = p.vertices.map((id) => board.vertices.find((v) => v.id === id)!)
           return (
-            <g key={p.id} className="port">
+            <g
+              key={p.id}
+              className="port"
+              role="img"
+              aria-label={
+                p.type === 'any'
+                  ? 'Harbour, trade any 3 resources for 1'
+                  : `Harbour, trade 2 ${p.type} for any 1`
+              }
+            >
               <line x1={p.x} y1={p.y} x2={va.x} y2={va.y} stroke="#c8a35b" strokeWidth={3} />
               <line x1={p.x} y1={p.y} x2={vb.x} y2={vb.y} stroke="#c8a35b" strokeWidth={3} />
-              <circle cx={p.x} cy={p.y} r={24} fill="#0e3350" stroke="#c8a35b" strokeWidth={3.5} />
+              <circle cx={p.x} cy={p.y} r={27} fill="#0e3350" stroke="#c8a35b" strokeWidth={3.5} />
               <text className="port__ratio" x={p.x} y={p.y - 4} textAnchor="middle">
                 {p.type === 'any' ? '3:1' : '2:1'}
               </text>
               {p.type !== 'any' && (
-                <text className="port__icon" x={p.x} y={p.y + 14} textAnchor="middle">
+                <text className="port__icon" x={p.x} y={p.y + 16} textAnchor="middle">
                   {TILE_ICON[p.type]}
                 </text>
               )}
@@ -176,7 +224,7 @@ export default function Board({
           const target = edgeTargets.has(e.id)
           if (!owner && !target) return null
           return (
-            <g key={e.id}>
+            <g key={e.id} role="img" aria-label={owner ? `${possessive(owner.name)} road` : 'Empty road slot'}>
               {/* Dark casing under the colour so roads read against any tile. */}
               {owner && (
                 <line
@@ -199,7 +247,7 @@ export default function Board({
                 strokeWidth={owner ? 11 : 9}
                 strokeLinecap="round"
               />
-              {/* Invisible fat stroke: a 9px line is far too thin to tap on a phone. */}
+              {/* Invisible fat stroke: a generous hit area for effortless tapping on phones and desktop. */}
               {target && (
                 <line
                   className="road__hit"
@@ -208,9 +256,11 @@ export default function Board({
                   x2={e.x2}
                   y2={e.y2}
                   stroke="transparent"
-                  strokeWidth={30}
+                  strokeWidth={38}
                   strokeLinecap="round"
                   onClick={() => onEdge(e.id)}
+                  role="button"
+                  aria-label="Empty road slot — build here"
                 />
               )}
             </g>
@@ -226,15 +276,18 @@ export default function Board({
           if (!owner && !target) return null
           if (!owner) {
             return (
-              <g key={v.id}>
-                <circle className="spot spot--target" cx={v.x} cy={v.y} r={11} />
+              <g key={v.id} className="spot-target-group">
+                <circle className="spot__hit-ring" cx={v.x} cy={v.y} r={30} />
+                <circle className="spot spot--target" cx={v.x} cy={v.y} r={16} />
                 <circle
                   className="spot__hit"
                   cx={v.x}
                   cy={v.y}
-                  r={24}
+                  r={30}
                   fill="transparent"
                   onClick={() => onVertex(v.id)}
+                  role="button"
+                  aria-label="Empty spot — build here"
                 />
               </g>
             )
@@ -244,6 +297,10 @@ export default function Board({
               key={v.id}
               className={target ? 'piece piece--target' : 'piece'}
               onClick={target ? () => onVertex(v.id) : undefined}
+              role={target ? 'button' : 'img'}
+              aria-label={`${possessive(owner.name)} ${isCity ? 'city' : 'settlement'}${
+                target ? ' — upgrade to a city' : ''
+              }`}
             >
               {/* Settlement reads as a small house, city as a larger house with
                   an adjoining block, so the two differ in silhouette and size

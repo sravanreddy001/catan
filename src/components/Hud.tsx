@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import type { GameSettings } from '../game/engine'
 import type { AIPreset } from '../game/ai'
 import type { Resource } from '../game/board'
@@ -17,7 +17,7 @@ import {
   hasCards,
   isEmptyBundle,
   formatVP,
-  victoryPoints,
+  scoreBreakdown,
   type BuildKind,
   type DevCard,
   type DevKind,
@@ -26,13 +26,27 @@ import {
   type TradeOffer,
 } from '../game/players'
 
+/** Close modals on Escape key */
+function useEscapeKey(callback?: () => void) {
+  useEffect(() => {
+    if (!callback) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        callback()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [callback])
+}
+
 /** Display bank resource supply. */
 export function BankSupply({ bank }: { bank: Record<Resource, number> }) {
   return (
-    <div className="hand" style={{ opacity: 0.7, fontSize: '0.85rem' }}>
+    <div className="hand" style={{ opacity: 0.85, fontSize: '0.85rem' }}>
       {RESOURCES.map((r) => (
         <div key={r} className="stack" title={`Bank has ${bank[r]} ${r}`}>
-          <div className="minicard">
+          <div className={`minicard minicard--${r}`}>
             {RESOURCE_ICON[r]}
             <span className="minicard__count">{bank[r]}</span>
           </div>
@@ -90,21 +104,65 @@ export function PlayerStrip({
 }) {
   return (
     <div className="strip">
-      {players.map((p) => (
-        <div
-          key={p.id}
-          className={`chip${p.id === current ? ' chip--active' : ''}`}
-          style={{ '--c': p.color } as React.CSSProperties}
-        >
-          <span className="chip__dot" />
-          <span className="chip__name">{p.name}</span>
-          {largestArmy === p.id && <span title="Largest army">⚔️</span>}
-          {longestRoad === p.id && <span title="Longest road">🛣️</span>}
-          <span className="chip__vp">
-            {formatVP(victoryPoints(p, largestArmy, longestRoad))} / {vpTarget}
-          </span>
-        </div>
-      ))}
+      {players.map((p) => {
+        const breakdown = scoreBreakdown(p, largestArmy, longestRoad)
+        const tooltipTitle = `${p.name}'s Score Breakdown:
+• Settlements: ${breakdown.settlements} (${breakdown.settlementPoints} VP)
+• Cities: ${breakdown.cities} (${breakdown.cityPoints} VP)${breakdown.devCardPoints > 0 ? `\n• Victory Point Cards: ${breakdown.devCardPoints} VP` : ''}${breakdown.largestArmy ? '\n• Largest Army: 2 VP' : ''}${breakdown.longestRoad ? '\n• Longest Road: 2 VP' : ''}
+Total: ${formatVP(breakdown.total)} / ${vpTarget} VP`
+
+        return (
+          <div
+            key={p.id}
+            className={`chip${p.id === current ? ' chip--active' : ''}`}
+            style={{ '--c': p.color } as React.CSSProperties}
+            title={tooltipTitle}
+            tabIndex={0}
+          >
+            <span className="chip__dot" />
+            <span className="chip__name">{p.name}</span>
+            {largestArmy === p.id && <span title="Largest army (2 VP)">⚔️</span>}
+            {longestRoad === p.id && <span title="Longest road (2 VP)">🛣️</span>}
+            <span className="chip__vp">
+              {formatVP(breakdown.total)} / {vpTarget}
+            </span>
+
+            <div className="chip__tooltip">
+              <div className="chip__tooltip-title">{p.name}'s Score</div>
+              <div className="chip__tooltip-row">
+                <span>Settlements ({breakdown.settlements})</span>
+                <span>{breakdown.settlementPoints} VP</span>
+              </div>
+              <div className="chip__tooltip-row">
+                <span>Cities ({breakdown.cities})</span>
+                <span>{breakdown.cityPoints} VP</span>
+              </div>
+              {breakdown.devCardPoints > 0 && (
+                <div className="chip__tooltip-row">
+                  <span>Dev Cards</span>
+                  <span>{breakdown.devCardPoints} VP</span>
+                </div>
+              )}
+              {breakdown.largestArmy && (
+                <div className="chip__tooltip-row">
+                  <span>Largest Army</span>
+                  <span>2 VP</span>
+                </div>
+              )}
+              {breakdown.longestRoad && (
+                <div className="chip__tooltip-row">
+                  <span>Longest Road</span>
+                  <span>2 VP</span>
+                </div>
+              )}
+              <div className="chip__tooltip-total">
+                <span>Total</span>
+                <span>{formatVP(breakdown.total)} / {vpTarget}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -112,6 +170,8 @@ export function PlayerStrip({
 /** Settings indicator chip showing active non-default settings. */
 export function SettingsChip({ settings, botPresets = {} }: { settings: GameSettings; botPresets?: Record<number, AIPreset> }) {
   const [expanded, setExpanded] = useState(false)
+  useEscapeKey(expanded ? () => setExpanded(false) : undefined)
+
   const hasNonDefaultSettings =
     settings.publicHands ||
     settings.vpTarget !== 10 ||
@@ -143,6 +203,7 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
         style={{ cursor: 'pointer', fontSize: '0.8rem' }}
         onClick={() => setExpanded(!expanded)}
         title="Active game settings"
+        aria-label="Active game settings"
       >
         <span>⚙️</span>
         {settings.publicHands && <span title="Public hands mode">👁️</span>}
@@ -158,9 +219,15 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
       </button>
 
       {expanded && (
-        <div className="modal" onClick={() => setExpanded(false)}>
+        <div
+          className="modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-dialog-title"
+          onClick={() => setExpanded(false)}
+        >
           <div className="modal__panel" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal__title">Game settings</h2>
+            <h2 id="settings-dialog-title" className="modal__title">Game settings</h2>
             <div style={{ fontSize: '0.9rem', lineHeight: '1.8' }}>
               {settings.publicHands && <div>✓ Public hands: all players' cards visible</div>}
               {settings.vpTarget !== 10 && <div>✓ VP target: {settings.vpTarget} points to win</div>}
@@ -236,7 +303,7 @@ export function HandBar({
         const n = player.hand[r]
         return (
           <div key={r} className="stack" title={`${n} ${r}`}>
-            <div className={`minicard${n === 0 ? ' minicard--empty' : ''}`}>
+            <div className={`minicard minicard--${r}${n === 0 ? ' minicard--empty' : ''}`}>
               {RESOURCE_ICON[r]}
               {n > 0 && <span className="minicard__count">{n}</span>}
             </div>
@@ -288,7 +355,7 @@ export function TradeBar({ player, rates, onTrade }: TradeBarProps) {
           )
         })}
         {give && (
-          <button className="swap swap--cancel" onClick={() => setGive(null)}>
+          <button className="swap swap--cancel" onClick={() => setGive(null)} aria-label="Cancel selection">
             ✕
           </button>
         )}
@@ -316,11 +383,20 @@ function costSpoken(kind: BuildKind): string {
 const BUILD_KINDS: BuildKind[] = ['road', 'settlement', 'city']
 
 /** What each piece and a dev card costs — the icon-only build buttons need this spelled out somewhere. */
-export function BuildGuide({ onClose }: { onClose: () => void }) {
+export function BuildGuide({ onClose, bank }: { onClose: () => void; bank?: Record<Resource, number> }) {
+  useEscapeKey(onClose)
   return (
-    <div className="modal">
+    <div
+      className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="build-guide-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
       <div className="modal__panel">
-        <h2 className="modal__title">What things cost</h2>
+        <h2 id="build-guide-title" className="modal__title">What things cost</h2>
         <div className="guide">
           {BUILD_KINDS.map((k) => (
             <div key={k} className="guide__row">
@@ -341,7 +417,15 @@ export function BuildGuide({ onClose }: { onClose: () => void }) {
             </span>
           </div>
         </div>
-        <button className="btn" onClick={onClose}>
+        {bank && (
+          <div style={{ marginTop: '1.2rem', paddingTop: '1rem', borderTop: '1px solid var(--line)' }}>
+            <h3 style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--muted)', textAlign: 'left' }}>
+              Bank supply
+            </h3>
+            <BankSupply bank={bank} />
+          </div>
+        )}
+        <button className="btn" onClick={onClose} style={{ marginTop: '1rem' }}>
           Close
         </button>
       </div>
@@ -437,13 +521,22 @@ export function DevCardSheet({
   onPlay: () => void
   onCancel: () => void
 }) {
+  useEscapeKey(onCancel)
   return (
-    <div className="modal">
+    <div
+      className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cardsheet-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel()
+      }}
+    >
       <div className="modal__panel">
         <div className="cardsheet">
           <div className="cardsheet__art">{DEV_ICON[card.kind]}</div>
           <div>
-            <p className="cardsheet__name">{DEV_LABEL[card.kind]}</p>
+            <p id="cardsheet-title" className="cardsheet__name">{DEV_LABEL[card.kind]}</p>
             <p className="cardsheet__rule">{DEV_RULE[card.kind]}</p>
             <p className="cardsheet__meta">{deckCount} cards left in the deck</p>
           </div>
@@ -469,15 +562,24 @@ export function DevCardGuide({
   deck: DevKind[]
   onClose: () => void
 }) {
+  useEscapeKey(onClose)
   const kinds = (Object.keys(DEV_LABEL) as DevKind[]).filter(
     (k) => !EXTRA_KINDS.includes(k) || deck.includes(k),
   )
   return (
-    <div className="modal">
+    <div
+      className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="card-guide-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
       <div className="modal__panel">
         <div className="trade-head">
-          <h2 className="modal__title">Development cards</h2>
-          <button className="trade-close" onClick={onClose}>
+          <h2 id="card-guide-title" className="modal__title">Development cards</h2>
+          <button className="trade-close" onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>
@@ -522,6 +624,7 @@ export function MerchantPanel({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  useEscapeKey(onCancel)
   const total = (b: Bundle) => Object.values(b).reduce((sum, n) => sum + (n ?? 0), 0)
   const given = total(baskets.give)
   const taken = total(baskets.get)
@@ -552,11 +655,19 @@ export function MerchantPanel({
     })
 
   return (
-    <div className="modal">
+    <div
+      className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="merchant-modal-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel()
+      }}
+    >
       <div className="modal__panel">
         <div className="trade-head">
-          <h2 className="modal__title">{DEV_ICON.merchant} Merchant</h2>
-          <button className="trade-close" onClick={onCancel}>
+          <h2 id="merchant-modal-title" className="modal__title">{DEV_ICON.merchant} Merchant</h2>
+          <button className="trade-close" onClick={onCancel} aria-label="Close">
             ✕
           </button>
         </div>
@@ -597,10 +708,19 @@ export function ResourcePicker({
   onPick: (r: Resource) => void
   onCancel?: () => void
 }) {
+  useEscapeKey(onCancel)
   return (
-    <div className="modal">
+    <div
+      className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="resource-picker-title"
+      onClick={(e) => {
+        if (onCancel && e.target === e.currentTarget) onCancel()
+      }}
+    >
       <div className="modal__panel">
-        <h2 className="modal__title">{title}</h2>
+        <h2 id="resource-picker-title" className="modal__title">{title}</h2>
         {hint && <p className="lobby__hint">{hint}</p>}
         <div className="trade__row">
           {RESOURCES.map((r) => (
@@ -635,9 +755,9 @@ export function DiscardPicker({
   const total = Object.values(picks).reduce((sum, n) => sum + (n ?? 0), 0)
 
   return (
-    <div className="modal">
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="discard-title">
       <div className="modal__panel">
-        <h2 className="modal__title">Rolled a 7 — discard {owed}</h2>
+        <h2 id="discard-title" className="modal__title">Rolled a 7 — discard {owed}</h2>
         <p className="lobby__hint">{player.name}, you're holding more than 7 cards.</p>
         <div className="discard__grid">
           {RESOURCES.map((r) => (
@@ -680,7 +800,7 @@ function Stepper({
 }) {
   return (
     <span className="stepper">
-      <button className="stepper__btn" disabled={value === 0} onClick={() => onChange(value - 1)}>
+      <button className="stepper__btn" disabled={value === 0} onClick={() => onChange(value - 1)} aria-label="Decrease">
         −
       </button>
       <span className="stepper__n">{value}</span>
@@ -688,6 +808,7 @@ function Stepper({
         className="stepper__btn"
         disabled={max !== undefined && value >= max}
         onClick={() => onChange(value + 1)}
+        aria-label="Increase"
       >
         +
       </button>
@@ -697,52 +818,6 @@ function Stepper({
 
 function totalCount(b: Bundle): number {
   return Object.values(b).reduce<number>((sum, n) => sum + (n ?? 0), 0)
-}
-
-/** Their/your resource picker: tap to add one to the draft. */
-function PickCell({
-  icon,
-  count,
-  disabled,
-  onClick,
-}: {
-  icon: string
-  count?: number
-  disabled?: boolean
-  onClick: () => void
-}) {
-  return (
-    <button type="button" className="trade-cell trade-cell--pick" disabled={disabled} onClick={onClick}>
-      <span className="trade-cell__icon">{icon}</span>
-      {count !== undefined && <span className="trade-cell__count">{count}</span>}
-    </button>
-  )
-}
-
-/** A staged want/give cell: tap to remove one. Dim once empty. */
-function StageCell({
-  icon,
-  n,
-  tone,
-  onRemove,
-}: {
-  icon: string
-  n: number
-  tone: 'want' | 'give'
-  onRemove: () => void
-}) {
-  const filled = n > 0
-  return (
-    <button
-      type="button"
-      className={`trade-cell trade-cell--${tone} ${filled ? 'trade-cell--filled' : 'trade-cell--empty'}`}
-      disabled={!filled}
-      onClick={onRemove}
-    >
-      <span className="trade-cell__icon">{icon}</span>
-      {filled && <span className="trade-cell__count">&times;{n}</span>}
-    </button>
-  )
 }
 
 function ReadonlyCell({ icon, n, tone }: { icon: string; n: number; tone: 'want' | 'give' }) {
@@ -766,7 +841,10 @@ interface OfferComposerProps {
   onPropose: (offer: TradeOffer) => void
 }
 
-/** Build an offer: tap their resources to want them, yours to give them up. */
+/**
+ * Two-column player-to-player trade composer:
+ * Clear side-by-side layout ("You give" ⇄ "You get") with direct count steppers.
+ */
 export function OfferComposer({
   player,
   players,
@@ -776,6 +854,7 @@ export function OfferComposer({
   onCancel,
   onPropose,
 }: OfferComposerProps) {
+  useEscapeKey(visible ? onDismiss : undefined)
   const [give, setGive] = useState<Bundle>({})
   const [want, setWant] = useState<Bundle>({})
   const [to, setTo] = useState<PlayerId | 'any'>('any')
@@ -784,10 +863,6 @@ export function OfferComposer({
   const valid = !isEmptyBundle(give) && !isEmptyBundle(want)
   const staged = totalCount(give) + totalCount(want)
 
-  const addWant = (r: Resource) => setWant((w) => ({ ...w, [r]: (w[r] ?? 0) + 1 }))
-  const removeWant = (r: Resource) => setWant((w) => ({ ...w, [r]: Math.max(0, (w[r] ?? 0) - 1) }))
-  const addGive = (r: Resource) => setGive((g) => ({ ...g, [r]: (g[r] ?? 0) + 1 }))
-  const removeGive = (r: Resource) => setGive((g) => ({ ...g, [r]: Math.max(0, (g[r] ?? 0) - 1) }))
   const reset = () => {
     setGive({})
     setWant({})
@@ -806,64 +881,74 @@ export function OfferComposer({
   return (
     <div
       className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="trade-composer-title"
       onClick={(e) => {
         if (e.target === e.currentTarget) onDismiss()
       }}
     >
-      <div className="modal__panel">
+      <div className="modal__panel modal__panel--trade">
         <div className="trade-head">
-          <h2 className="modal__title">Trade</h2>
-          <button className="trade-close" onClick={onDismiss} aria-label="Dismiss">
+          <h2 id="trade-composer-title" className="modal__title">Propose trade</h2>
+          <button className="trade-close" onClick={onDismiss} aria-label="Dismiss trade dialog">
             &times;
           </button>
         </div>
 
-        <span className="trade-eyebrow">Theirs</span>
-        <div className="trade-grid">
-          {RESOURCES.map((r) => (
-            <PickCell key={r} icon={RESOURCE_ICON[r]} onClick={() => addWant(r)} />
-          ))}
-        </div>
+        <div className="trade-columns">
+          {/* Left Column: You give */}
+          <div className="trade-col">
+            <span className="trade-eyebrow trade-eyebrow--give">
+              You give ({totalCount(give)})
+            </span>
+            <div className="trade-col-list">
+              {RESOURCES.map((r) => {
+                const held = player.hand[r] ?? 0
+                const count = give[r] ?? 0
+                return (
+                  <div key={r} className="trade-col-row">
+                    <div className="trade-col-info">
+                      <span className="trade-col-icon">{RESOURCE_ICON[r]}</span>
+                      <span className="trade-col-held">held {held}</span>
+                    </div>
+                    <Stepper
+                      value={count}
+                      max={held}
+                      onChange={(n) => setGive({ ...give, [r]: n })}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
 
-        <span className="trade-eyebrow trade-eyebrow--want">Want</span>
-        <div className="trade-grid">
-          {RESOURCES.map((r) => (
-            <StageCell
-              key={r}
-              icon={RESOURCE_ICON[r]}
-              n={want[r] ?? 0}
-              tone="want"
-              onRemove={() => removeWant(r)}
-            />
-          ))}
-        </div>
+          <div className="trade-arrow" aria-hidden="true">
+            ⇄
+          </div>
 
-        <hr className="trade-divider" />
-
-        <span className="trade-eyebrow trade-eyebrow--give">Give</span>
-        <div className="trade-grid">
-          {RESOURCES.map((r) => (
-            <StageCell
-              key={r}
-              icon={RESOURCE_ICON[r]}
-              n={give[r] ?? 0}
-              tone="give"
-              onRemove={() => removeGive(r)}
-            />
-          ))}
-        </div>
-
-        <span className="trade-eyebrow">Yours</span>
-        <div className="trade-grid">
-          {RESOURCES.map((r) => (
-            <PickCell
-              key={r}
-              icon={RESOURCE_ICON[r]}
-              count={player.hand[r]}
-              disabled={(give[r] ?? 0) >= player.hand[r]}
-              onClick={() => addGive(r)}
-            />
-          ))}
+          {/* Right Column: You get */}
+          <div className="trade-col">
+            <span className="trade-eyebrow trade-eyebrow--want">
+              You get ({totalCount(want)})
+            </span>
+            <div className="trade-col-list">
+              {RESOURCES.map((r) => {
+                const count = want[r] ?? 0
+                return (
+                  <div key={r} className="trade-col-row">
+                    <div className="trade-col-info">
+                      <span className="trade-col-icon">{RESOURCE_ICON[r]}</span>
+                    </div>
+                    <Stepper
+                      value={count}
+                      onChange={(n) => setWant({ ...want, [r]: n })}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
 
         <div className="offer__to">
@@ -896,14 +981,14 @@ export function OfferComposer({
             Cancel
           </button>
           <button
-            className="btn btn--primary"
+            className="btn btn--primary btn--propose"
             disabled={!valid}
             onClick={() => {
               onPropose({ from: player.id, to, give, want, declinedBy: [] })
               reset()
             }}
           >
-            Propose
+            {valid ? 'Propose trade' : 'Select cards to trade'}
           </button>
         </div>
       </div>
@@ -920,6 +1005,7 @@ interface OfferResponseProps {
 
 /** Hot-seat: pass the device, the named player answers. */
 export function OfferResponse({ offer, players, onAccept, onDecline }: OfferResponseProps) {
+  useEscapeKey(onDecline)
   const proposer = players.find((p) => p.id === offer.from)!
   const responders = players.filter(
     (p) =>
@@ -928,9 +1014,9 @@ export function OfferResponse({ offer, players, onAccept, onDecline }: OfferResp
   )
 
   return (
-    <div className="modal">
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="offer-response-title">
       <div className="modal__panel">
-        <h2 className="modal__title">{proposer.name} offered a trade</h2>
+        <h2 id="offer-response-title" className="modal__title">{proposer.name} offered a trade</h2>
 
         <span className="trade-eyebrow trade-eyebrow--want">You&apos;d get</span>
         <div className="trade-grid">
@@ -1031,33 +1117,35 @@ export function ActionBar({
       {!hasRolled ? (
         <button className="btn btn--roll" onClick={onRoll}>
           <span className="btn__roll-icon">🎲</span>
-          Roll dice
+          <span className="btn__label">Roll dice</span>
         </button>
       ) : (
         <>
           {kinds.map((k) => (
             <button
               key={k}
-              className={`btn${mode === k ? ' btn--on' : ''}`}
+              className={`btn btn--build${mode === k ? ' btn--on' : ''}`}
               disabled={!canAfford(player, k)}
               onClick={() => (mode === k ? onCancel() : onBuild(k))}
               title={`${BUILD_LABEL[k]}: ${costLabel(k)}`}
-              /* The button's only content is a bare SVG shape, so without this
-                 it has no accessible name at all — and `title` never surfaces
-                 on touch. */
+              /* The button carries an accessible name and pressed state */
               aria-label={`Build ${BUILD_LABEL[k].toLowerCase()} — costs ${costSpoken(k)}`}
               aria-pressed={mode === k}
             >
-              <PieceIcon kind={k} color={player.color} dark={player.dark} />
+              <div className="btn__build-header">
+                <PieceIcon kind={k} color={player.color} dark={player.dark} />
+                <span className="btn__label">{BUILD_LABEL[k]}</span>
+              </div>
+              <span className="btn__cost">{costLabel(k)}</span>
             </button>
           ))}
           {canOffer && (
             <button className="btn btn--trade" onClick={onOffer} disabled={mode === 'robber'}>
-              Trade
+              <span className="btn__label">Trade</span>
             </button>
           )}
-          <button className="btn btn--primary" onClick={onEndTurn} disabled={mode === 'robber'}>
-            End turn
+          <button className="btn btn--primary btn--end-turn" onClick={onEndTurn} disabled={mode === 'robber'}>
+            <span className="btn__label">End turn</span>
           </button>
         </>
       )}
