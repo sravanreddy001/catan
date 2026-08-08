@@ -64,20 +64,22 @@ function PieceIcon({
   kind,
   color = '#f3c969',
   dark = '#8a6a1f',
+  size = 32,
 }: {
   kind: BuildKind
   color?: string
   dark?: string
+  size?: number
 }) {
   if (kind === 'road') {
     return (
-      <svg width="26" height="26" viewBox="-14 -14 28 28">
+      <svg width={size} height={size} viewBox="-14 -14 28 28">
         <line x1="-9" y1="7" x2="9" y2="-7" stroke={color} strokeWidth="6" strokeLinecap="round" />
       </svg>
     )
   }
   return (
-    <svg width="26" height="26" viewBox="-14 -14 28 28">
+    <svg width={size} height={size} viewBox="-14 -14 28 28">
       <polygon
         points={kind === 'city' ? CITY_SHAPE : SETTLEMENT_SHAPE}
         fill={color}
