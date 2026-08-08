@@ -82,6 +82,9 @@ function actorMayDispatch(state: GameState, action: Action, fromSeat: number): b
   }
 }
 
+/** How long a human gets to answer a bot's trade offer before it passes. */
+const OFFER_ANSWER_SECONDS = 20
+
 export default function App() {
   const [stage, setStage] = useState<Stage>({ kind: 'lobby' })
   const [state, setState] = useState<GameState | null>(null)
@@ -100,6 +103,8 @@ export default function App() {
   const [botPresets, setBotPresets] = useState<Record<number, AIPreset>>({})
   /** Bumped after each bot move so a no-op action still re-triggers the loop. */
   const [botTick, setBotTick] = useState(0)
+  /** Seconds left to answer a bot's offer; null when no clock is running. */
+  const [offerClock, setOfferClock] = useState<number | null>(null)
 
   const host = useRef<HostSession | null>(null)
   const guest = useRef<GuestSession | null>(null)
@@ -143,6 +148,8 @@ export default function App() {
     if (!state || state.winner !== null || Object.keys(botPresets).length === 0) return
     const active = currentPlayerId(state)
     if (!(active in botPresets)) return
+    // Its own offer is on the table: wait for the answer instead of playing on.
+    if (state.offer) return
 
     const timer = window.setTimeout(() => {
       const action = chooseAction(state, active, botPresets[active])
@@ -190,6 +197,39 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [state, botPresets, dispatch])
 
+  // A bot's offer waits on the human, but not forever: the clock below gives a
+  // real chance to read it and answer, then passes so play cannot stall on an
+  // unattended tab. Only bot-proposed offers run on a clock — an offer a human
+  // made waits as long as its responders need.
+  useEffect(() => {
+    const offer = state?.offer
+    if (!state || !offer || !(offer.from in botPresets)) {
+      setOfferClock(null)
+      return
+    }
+    const mySeat = (seat ?? currentPlayerId(state)) as PlayerId
+    const mine =
+      (offer.to === 'any' ? mySeat !== offer.from : offer.to === mySeat) &&
+      !offer.declinedBy.includes(mySeat) &&
+      !(mySeat in botPresets)
+    if (!mine) {
+      setOfferClock(null)
+      return
+    }
+
+    const deadline = Date.now() + OFFER_ANSWER_SECONDS * 1000
+    setOfferClock(OFFER_ANSWER_SECONDS)
+    const tick = window.setInterval(() => {
+      const left = Math.ceil((deadline - Date.now()) / 1000)
+      setOfferClock(Math.max(0, left))
+      if (left <= 0) {
+        window.clearInterval(tick)
+        dispatch({ type: 'declineOffer', responder: mySeat })
+      }
+    }, 250)
+    return () => window.clearInterval(tick)
+  }, [state, seat, botPresets, dispatch])
+
   /** Offline is you (seat 0) against AI opponents in the remaining seats. */
   function startOffline(opponents: number, color: number, settings?: Partial<GameSettings>, presets?: Record<number, AIPreset>) {
     const names = ['You', ...Array.from({ length: opponents }, (_, i) => `Bot ${i + 1}`)]
@@ -211,8 +251,11 @@ export default function App() {
     setStage({ kind: 'playing' })
   }
 
-  function startHosting(name: string, color: number) {
+  function startHosting(name: string, color: number, settings?: Partial<GameSettings>) {
     const code = roomCode()
+    // What the host picked in the lobby seeds the room; the waiting room can
+    // still change it before the game starts.
+    const seeded: GameSettings = { ...defaultSettings(), ...settings }
     setSeat(0)
     host.current = new HostSession(code, name, color, {
       onLobby: (lobby: LobbyInfo) =>
@@ -228,7 +271,7 @@ export default function App() {
           names: lobby.names,
           colors: lobby.colors,
           status: `${lobby.names.length} of 4 seats filled.`,
-          settings: defaultSettings(),
+          settings: seeded,
         })),
       onAction: (action, fromSeat) =>
         setState((prev) => {
@@ -247,7 +290,7 @@ export default function App() {
       names: [name],
       colors: [color],
       status: 'Share the code or link, then start when everyone is in.',
-      settings: defaultSettings(),
+      settings: seeded,
     })
   }
 
@@ -591,6 +634,8 @@ export default function App() {
         <OfferResponse
           offer={state.offer}
           players={state.players}
+          answerable={offerResponders.filter((s) => !(s in botPresets)) as PlayerId[]}
+          secondsLeft={offerClock}
           onAccept={(responder) => dispatch({ type: 'acceptOffer', responder })}
           onDecline={() => dispatch({ type: 'declineOffer', responder: viewerSeat })}
         />

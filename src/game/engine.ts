@@ -96,6 +96,12 @@ export interface GameState {
   robberTile: string
   message: string
   offer: TradeOffer | null
+  /**
+   * Player-to-player offers proposed this turn. A refused offer leaves no
+   * trace in the state, so without this a bot would re-propose the same
+   * rejected swap on every tick and never end its turn.
+   */
+  offersMade: number
   deck: DevKind[]
   playedDev: boolean
   /** Free roads owed by a road-building card. */
@@ -189,6 +195,7 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     robberTile: board.tiles.find((t) => t.type === 'desert')?.id ?? board.tiles[0].id,
     message: `${players[order[0]].name}: place your first settlement.`,
     offer: null,
+    offersMade: 0,
     deck: createDevDeck(Math.random, finalSettings.newDevCards, finalSettings.santaMode),
     playedDev: false,
     freeRoads: 0,
@@ -926,7 +933,12 @@ function step(state: GameState, action: Action): GameState {
       return state.merchant ? { ...state, merchant: null, message: 'Merchant swap cancelled.' } : state
 
     case 'propose':
-      return { ...state, offer: action.offer, message: 'Trade offered — waiting on a response.' }
+      return {
+        ...state,
+        offer: action.offer,
+        offersMade: (state.offersMade ?? 0) + 1,
+        message: 'Trade offered — waiting on a response.',
+      }
 
     case 'acceptOffer': {
       if (!state.offer) return state
@@ -982,6 +994,7 @@ function step(state: GameState, action: Action): GameState {
         hasRolled: false,
         rollCount: 0,
         offer: null,
+        offersMade: 0,
         message: `${state.players[nextId].name} to roll.`,
       }
     }

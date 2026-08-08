@@ -1020,24 +1020,34 @@ export function OfferComposer({
 interface OfferResponseProps {
   offer: TradeOffer
   players: Player[]
+  /** Seats this device may answer for — bots decide for themselves. */
+  answerable?: PlayerId[]
+  /** Countdown on a bot's offer; null when no clock is running. */
+  secondsLeft?: number | null
   onAccept: (responder: PlayerId) => void
   onDecline: () => void
 }
 
 /** Hot-seat: pass the device, the named player answers. */
-export function OfferResponse({ offer, players, onAccept, onDecline }: OfferResponseProps) {
+export function OfferResponse({ offer, players, answerable, secondsLeft, onAccept, onDecline }: OfferResponseProps) {
   useEscapeKey(onDecline)
   const proposer = players.find((p) => p.id === offer.from)!
   const responders = players.filter(
     (p) =>
       (offer.to === 'any' ? p.id !== offer.from : p.id === offer.to) &&
-      !offer.declinedBy.includes(p.id),
+      !offer.declinedBy.includes(p.id) &&
+      (answerable === undefined || answerable.includes(p.id)),
   )
 
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="offer-response-title">
       <div className="modal__panel">
         <h2 id="offer-response-title" className="modal__title">{proposer.name} offered a trade</h2>
+        {secondsLeft !== null && secondsLeft !== undefined && (
+          <p className="offer__clock" aria-live="off">
+            {secondsLeft}s to answer — no answer counts as a pass.
+          </p>
+        )}
 
         <span className="trade-eyebrow trade-eyebrow--want">You&apos;d get</span>
         <div className="trade-grid">
@@ -1063,7 +1073,9 @@ export function OfferResponse({ offer, players, onAccept, onDecline }: OfferResp
                 disabled={!able}
                 onClick={() => onAccept(p.id)}
               >
-                <span className="btn__label">{p.name} accepts</span>
+                {/* Naming the seat only helps when the device answers for more
+                    than one — otherwise it reads as "You Accepts". */}
+                <span className="btn__label">{responders.length > 1 ? `${p.name} accepts` : 'Accept trade'}</span>
                 {!able && <span className="btn__cost">not enough cards</span>}
               </button>
             )

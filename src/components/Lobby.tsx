@@ -9,7 +9,8 @@ interface Props {
   initialCode: string | null
   resumable: boolean
   onOffline: (count: number, color: number, settings?: Partial<GameSettings>, presets?: Record<number, AIPreset>) => void
-  onHost: (name: string, color: number) => void
+  /** Settings are the host's to set; they seed the room and stay editable there. */
+  onHost: (name: string, color: number, settings?: Partial<GameSettings>) => void
   onJoin: (code: string, name: string, color: number) => void
   onResume: () => void
 }
@@ -22,7 +23,13 @@ interface Props {
  */
 type Screen = 'offline' | 'online'
 
-const VP_OPTIONS = [8, 10, 12, 15]
+/**
+ * 15 is gone: the board tops out at 13 VP (4 cities, 1 settlement, both
+ * bonuses), so reaching 15 needs two victory cards, and roughly a third of
+ * four-player games never got there. An endless mode is the right home for
+ * a marathon, not a VP target that can strand a game.
+ */
+const VP_OPTIONS = [8, 10, 12]
 
 const BANK_OPTIONS: Array<{ value: GameSettings['bankPreset']; label: string }> = [
   { value: 'standard', label: 'Standard (19)' },
@@ -123,7 +130,9 @@ function SettingsFields({
           value={vpTarget}
           onChange={(e) => setVpTarget(Number(e.target.value))}
         >
-          {VP_OPTIONS.map((n) => (
+          {/* A saved room can still carry a retired target; show it rather
+              than render a blank select over a value that is really set. */}
+          {(VP_OPTIONS.includes(vpTarget) ? VP_OPTIONS : [...VP_OPTIONS, vpTarget]).map((n) => (
             <option key={n} value={n}>
               {n === 10 ? '10 (standard)' : n}
             </option>
@@ -319,10 +328,32 @@ export default function Lobby({
               <ColorPicker value={color} onPick={setColor} />
             </div>
 
+            <details className="lobby__advanced">
+              <summary className="lobby__advanced-summary">Advanced settings</summary>
+              <div className="settings-section">
+                <SettingsFields
+                  idPrefix="lobby-online"
+                  publicHands={publicHands}
+                  setPublicHands={setPublicHands}
+                  santaMode={santaMode}
+                  setSantaMode={setSantaMode}
+                  speedMode={speedMode}
+                  setSpeedMode={setSpeedMode}
+                  newDevCards={newDevCards}
+                  setNewDevCards={setNewDevCards}
+                  vpTarget={vpTarget}
+                  setVpTarget={setVpTarget}
+                  bankPreset={bankPreset}
+                  setBankPreset={setBankPreset}
+                />
+                <p className="lobby__hint">Only the host&apos;s settings apply, and they stay editable in the room.</p>
+              </div>
+            </details>
+
             <button
               className="btn btn--primary"
               disabled={!name.trim()}
-              onClick={() => onHost(name.trim(), color)}
+              onClick={() => onHost(name.trim(), color, settings)}
             >
               Host a new game
             </button>
@@ -353,7 +384,7 @@ export default function Lobby({
             </div>
 
             <p className="lobby__hint">
-              The host picks the game settings once everyone has joined.
+              Joining? The host&apos;s settings apply to the room.
             </p>
           </div>
         )}

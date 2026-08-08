@@ -204,6 +204,44 @@ function tradeTowardsGoal(state: GameState, seat: number, preset: AIPreset = nul
   return null
 }
 
+/** At most this many table offers per turn, so a refused bot never loops. */
+const MAX_OFFERS_PER_TURN = 2
+
+/**
+ * A 1:1 swap put to the table. Cheaper than any bank rate, so the bot tries
+ * this before paying 4:1 — it costs only a pause if everyone refuses.
+ */
+function proposeSwap(state: GameState, seat: number, preset: AIPreset = null): Action | null {
+  if (state.offer || (state.offersMade ?? 0) >= MAX_OFFERS_PER_TURN) return null
+  const config = getPresetConfig(preset)
+  const me = state.players[seat]
+  const goal = me.settlements.length > 0 && me.cities.length < 4 ? 'city' : 'settlement'
+  const need = missingFor(me, goal)
+  const wanted = (Object.keys(need) as Resource[])[0]
+  if (!wanted) return null
+  // Never ask the table for a card nobody is holding.
+  if (!state.players.some((p) => p.id !== seat && p.hand[wanted] > 0)) return null
+
+  // Offer only from a genuine surplus: a resource the current build does not
+  // call for, held more than once. A reluctant preset wants a fatter cushion.
+  const spare = ALL.filter(
+    (res) => res !== wanted && !need[res] && me.hand[res] >= 1 + config.tradeThreshold,
+  )
+  const give = best(spare, (res) => me.hand[res])
+  if (!give) return null
+
+  return {
+    type: 'propose',
+    offer: {
+      from: seat as PlayerId,
+      to: 'any',
+      give: { [give]: 1 },
+      want: { [wanted]: 1 },
+      declinedBy: [],
+    },
+  }
+}
+
 /**
  * The bot's move for the current turn. Returns null when it has nothing left
  * to do, which the caller turns into an end of turn.
@@ -353,6 +391,10 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
   if (canAfford(me, 'road') && me.roads.length < PIECE_LIMITS.roads && targetsFor(state, 'road').length > 0) {
     return { type: 'setMode', mode: 'road' }
   }
+
+  // Ask the table first, fall back to the bank's worse rate.
+  const swap = proposeSwap(state, seat, preset)
+  if (swap) return swap
 
   const trade = tradeTowardsGoal(state, seat, preset)
   if (trade) return trade

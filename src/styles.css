@@ -1152,6 +1152,14 @@ body {
   margin: 12px 0;
 }
 
+/* The answer window on a bot's offer. Deliberately quiet — it is a deadline,
+   not an alarm, and must not pull the eye off the two baskets below it. */
+.offer__clock {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .pending-offer {
   position: fixed;
   top: calc(env(safe-area-inset-top) + 54px);
