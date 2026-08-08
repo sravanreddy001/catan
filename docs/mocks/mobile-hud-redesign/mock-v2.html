@@ -185,9 +185,9 @@
       </div>
 
       <div class="stage">
-        <!-- viewBox cropped to the hex cluster's bounds plus a deliberate 5%
+        <!-- viewBox cropped to the hex cluster's bounds plus a deliberate 3%
              margin on every side (was 0 0 400 380, which padded ~18%). -->
-        <svg viewBox="19 11 362 334" class="bd"></svg>
+        <svg viewBox="26 17 349 322" class="bd"></svg>
         <div class="dice">
           <div class="die"><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i></div>
           <div class="die"><i></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i></div>
@@ -231,8 +231,8 @@
     </div>
 
     <div class="notes">
-      Hexes <span class="metric">353 × 326 px — 34.9%</span> of the screen (30.7% before the rail work, 3.4% on the current build)<br>
-      <b>+</b> a deliberate 5% margin each side — 18 px — so the board breathes without wasting the width.<br>
+      Hexes <span class="metric">366 × 338 px — 37.6%</span> of the screen (30.7% before the rail work, 3.4% on the current build)<br>
+      <b>+</b> a deliberate 3% margin each side — 11 px — so the board breathes without wasting the width.<br>
       <b>+</b> every resource count and the card count readable without a tap.<br>
       <b>!</b> the crop assumes ports sit <i>inside</i> the frame — see the note below.
     </div>
@@ -258,9 +258,9 @@
       </div>
 
       <div class="stage">
-        <!-- viewBox cropped to the hex cluster's bounds plus a deliberate 5%
+        <!-- viewBox cropped to the hex cluster's bounds plus a deliberate 3%
              margin on every side (was 0 0 400 380, which padded ~18%). -->
-        <svg viewBox="19 11 362 334" class="bd"></svg>
+        <svg viewBox="26 17 349 322" class="bd"></svg>
         <div class="dice">
           <div class="die"><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i></div>
           <div class="die"><i></i><i></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i><i></i></div>
@@ -335,10 +335,10 @@
   <div class="callout">
     Reducing the stage padding was not the win — it was already 3 px. The margin came from the board's own
     <b>viewBox</b>, which enclosed ~18% empty space around the hex cluster. Re-cropping it to the cluster's
-    bounds <b>plus a deliberate 5% margin</b> took the painted hexes from <b>314 px</b> wide to
-    <b>353 px</b> — a <b>12% linear increase</b> with no layout change at all. Cropping flush to the hexes
+    bounds <b>plus a deliberate 3% margin</b> took the painted hexes from <b>314 px</b> wide to
+    <b>366 px</b> — a <b>17% linear increase</b> with no layout change at all. Cropping flush to the hexes
     would have reached 384 px, but the board then touches both screen edges with nothing to breathe against;
-    5% (18 px a side) keeps the frame deliberate.
+    3% (11 px a side) keeps the frame deliberate while giving back most of the width.
     <br><br>
     <b>Caveat for the build.</b> This mock draws no harbours. The real board's bounds include the port markers
     out at sea, so cropping this tight would clip them. In the app the equivalent change is to compute the
