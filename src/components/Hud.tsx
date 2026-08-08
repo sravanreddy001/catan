@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { GameSettings } from '../game/engine'
+import { PIECE_LIMITS, type GameSettings } from '../game/engine'
 import type { AIPreset } from '../game/ai'
 import type { Resource } from '../game/board'
 import {
@@ -1117,6 +1117,8 @@ interface ActionBarProps {
   canOffer: boolean
   /** Buying a dev card sits in the build row: it is a fourth thing you buy. */
   canBuyDev: boolean
+  /** Deck exhausted — the same permanent "none left" as a spent piece. */
+  devDeckEmpty: boolean
   onBuild: (kind: BuildKind) => void
   onBuyDev: () => void
   onRoll: () => void
@@ -1132,6 +1134,7 @@ export function ActionBar({
   myTurn = true,
   canOffer,
   canBuyDev,
+  devDeckEmpty,
   onBuild,
   onBuyDev,
   onRoll,
@@ -1140,6 +1143,22 @@ export function ActionBar({
   onOffer,
 }: ActionBarProps) {
   const kinds: BuildKind[] = ['road', 'settlement', 'city']
+  /*
+   * Pieces are finite, and running out is permanent in a way that being short
+   * of cards is not — a player who has placed all 15 roads will never build
+   * another, however much brick they collect. The button says so directly
+   * rather than sitting dim and unexplained next to affordable costs.
+   */
+  const placed: Record<BuildKind, number> = {
+    road: player.roads.length,
+    settlement: player.settlements.length,
+    city: player.cities.length,
+  }
+  const limits: Record<BuildKind, number> = {
+    road: PIECE_LIMITS.roads,
+    settlement: PIECE_LIMITS.settlements,
+    city: PIECE_LIMITS.cities,
+  }
   const canRoll = myTurn && !hasRolled
   const canAct = myTurn && hasRolled && mode !== 'robber'
 
@@ -1154,38 +1173,69 @@ export function ActionBar({
       <div className="actions__grid">
         <div className="actions__build-row">
           {kinds.map((k) => {
-            const canBuild = canAct && canAfford(player, k)
+            const spent = placed[k] >= limits[k]
+            const canBuild = canAct && !spent && canAfford(player, k)
             return (
               <button
                 key={k}
-                className={`btn btn--build${mode === k ? ' btn--on' : ''}`}
+                className={`btn btn--build${mode === k ? ' btn--on' : ''}${spent ? ' btn--spent' : ''}`}
                 disabled={!canBuild}
                 onClick={() => (mode === k ? onCancel() : onBuild(k))}
-                title={`${BUILD_LABEL[k]}: ${costLabel(k)}`}
-                aria-label={`Build ${BUILD_LABEL[k].toLowerCase()} — costs ${costSpoken(k)}`}
+                title={
+                  spent
+                    ? `All ${limits[k]} ${BUILD_LABEL[k].toLowerCase()} pieces are on the board`
+                    : `${BUILD_LABEL[k]}: ${costLabel(k)}`
+                }
+                aria-label={
+                  spent
+                    ? `${BUILD_LABEL[k]} — none left, all ${limits[k]} are on the board`
+                    : `Build ${BUILD_LABEL[k].toLowerCase()} — costs ${costSpoken(k)}`
+                }
                 aria-pressed={mode === k}
               >
                 <div className="btn__build-header">
-                  <PieceIcon kind={k} color={player.color} dark={player.dark} />
+                  <span className="btn__piece">
+                    <PieceIcon kind={k} color={player.color} dark={player.dark} />
+                    {spent && (
+                      <span className="btn__spent-mark" aria-hidden="true">
+                        🚫
+                      </span>
+                    )}
+                  </span>
                   <span className="btn__label">{BUILD_LABEL[k]}</span>
                 </div>
-                <span className="btn__cost">{costLabel(k)}</span>
+                {spent && <span className="btn__cost btn__cost--spent">none left</span>}
               </button>
             )
           })}
 
           <button
-            className="btn btn--build btn--buydev"
+            className={`btn btn--build btn--buydev${devDeckEmpty ? ' btn--spent' : ''}`}
             disabled={!canBuyDev}
             onClick={onBuyDev}
-            title={`Buy a development card: ${DEV_COST_LABEL}`}
-            aria-label={`Buy a development card — costs 1 wool, 1 grain and 1 ore`}
+            title={
+              devDeckEmpty
+                ? 'The development deck is empty'
+                : `Buy a development card: ${DEV_COST_LABEL}`
+            }
+            aria-label={
+              devDeckEmpty
+                ? 'Development cards — none left, the deck is empty'
+                : 'Buy a development card — costs 1 wool, 1 grain and 1 ore'
+            }
           >
             <div className="btn__build-header">
-              <span className="btn__buydev-icon">🃏</span>
+              <span className="btn__piece">
+                <span className="btn__buydev-icon">🃏</span>
+                {devDeckEmpty && (
+                  <span className="btn__spent-mark" aria-hidden="true">
+                    🚫
+                  </span>
+                )}
+              </span>
               <span className="btn__label">Buy</span>
             </div>
-            <span className="btn__cost">{DEV_COST_LABEL}</span>
+            {devDeckEmpty && <span className="btn__cost btn__cost--spent">none left</span>}
           </button>
         </div>
 

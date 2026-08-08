@@ -599,8 +599,43 @@ body {
 }
 
 .btn__piece {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
   line-height: 1;
+}
+
+/*
+ * Out of pieces. A dashed edge and a struck-through piece separate "you will
+ * never build this again" from the ordinary dim of "you cannot afford it yet",
+ * which otherwise look identical.
+ */
+.btn--spent {
+  border-style: dashed;
+}
+
+.btn--spent .btn__piece {
+  opacity: 0.4;
+}
+
+.btn__spent-mark {
+  position: absolute;
+  right: -7px;
+  bottom: -5px;
+  font-size: 13px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+
+.btn__cost--spent {
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+  color: #e08a7a;
+  text-transform: uppercase;
 }
 
 /* ---------- hand & minicards ---------- */
@@ -1847,11 +1882,14 @@ body {
 
   .actions__build-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* minmax(0,…) not 1fr: a nowrap "none left" would otherwise raise the
+       track's min-content floor and push the row wider than the dock. */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
 
   .btn--build {
+  min-width: 0;
     flex-direction: column;
     gap: 1px;
     min-height: 58px;
@@ -2072,7 +2110,7 @@ body {
      the pinned turn row on a 768px-tall laptop. */
   .actions__build-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 

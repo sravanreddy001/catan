@@ -692,6 +692,7 @@ export default function App() {
             <ActionBar
               player={viewed}
               canBuyDev={!devBusy && canAffordDev(viewed) && state.deck.length > 0}
+              devDeckEmpty={state.deck.length === 0}
               onBuyDev={() => dispatch({ type: 'buyDev' })}
               mode={state.mode}
               hasRolled={state.hasRolled}
