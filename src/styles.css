@@ -1253,10 +1253,11 @@ body {
   /*
    * The settings scroll inside their own box rather than growing the panel,
    * so the start button keeps its place whether the section is open or shut.
-   * 430px is the fixed chrome around it: title, tabs, opponents, colours,
-   * this summary, and the two buttons underneath.
+   * 500px is the fixed chrome around it: title, tabs, opponents, colours,
+   * this summary, and both buttons underneath — Resume included, which is the
+   * lowest thing on the panel and the first to be clipped if this is short.
    */
-  max-height: max(150px, calc(90vh - 430px));
+  max-height: max(100px, calc(90vh - 500px));
   overflow-y: auto;
 }
 

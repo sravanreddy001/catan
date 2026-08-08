@@ -236,9 +236,9 @@ export default function Lobby({
             </div>
 
             <details className="lobby__advanced">
-              <summary className="lobby__advanced-summary">
-                Advanced settings &amp; bot personalities
-              </summary>
+              {/* Short enough to stay on one line at 375px — a wrapped summary
+                  costs a whole row of the settings box below it. */}
+              <summary className="lobby__advanced-summary">Advanced settings</summary>
               <div className="settings-section">
                 <SettingsFields
                   idPrefix="lobby"
