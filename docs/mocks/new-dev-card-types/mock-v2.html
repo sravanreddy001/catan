@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>New dev card types — mock v2</title>
+<style>
+  :root {
+    --bg: #0d2438;
+    --sea: #14405f;
+    --panel: #10314a;
+    --panel-2: #0b2438;
+    --line: rgba(255, 255, 255, 0.12);
+    --text: #eaf1f7;
+    --muted: #9db4c7;
+    --violet: #9a82db;
+    --violet-text: #c3b2f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 20px 60px; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  .lede { color: var(--muted); font-size: 13px; margin: 0 0 8px; max-width: 66ch; }
+  .changed {
+    display: inline-block; margin: 0 0 24px; padding: 8px 12px; border-radius: 10px;
+    background: rgba(154, 130, 219, 0.14); border: 1px solid var(--violet);
+    color: var(--violet-text); font-size: 12px; max-width: 66ch;
+  }
+  .frames { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+  .frame { width: 380px; }
+  .frame__cap { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 7px; }
+  .frame__cap b { color: var(--violet-text); }
+  .frame__note { font-size: 12px; color: var(--muted); margin: 8px 2px 0; }
+  .screen { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel-2); }
+
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+  .strip { display: flex; gap: 6px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+  .chip { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid transparent; font-size: 14px; white-space: nowrap; }
+  .chip--active { border-color: var(--c); background: color-mix(in srgb, var(--c) 22%, transparent); }
+  .chip__dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+  .chip__vp { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chip__vp b { color: var(--text); font-weight: 700; }
+  .setchip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 999px; background: rgba(154,130,219,0.16); border: 1px solid var(--violet); font-size: 13px; line-height: 1; }
+  .setchip small { color: var(--violet-text); font-size: 11px; font-weight: 700; }
+
+  .stage { height: 120px; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 35%, #1b5177 0%, var(--sea) 55%, var(--bg) 100%); color: var(--muted); font-size: 12px; }
+
+  .dock { background: var(--panel); border-top: 1px solid var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .status { font-size: 13px; color: var(--muted); }
+  .status b { color: var(--text); font-weight: 600; }
+
+  .hand { display: flex; gap: 10px; }
+  .stack { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .minicard { position: relative; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; background: #f2ead9; border: 1px solid rgba(0,0,0,0.35); box-shadow: 0 -1px 2px rgba(0,0,0,0.3); font-size: 17px; line-height: 1; }
+  .minicard__count { position: absolute; right: -6px; bottom: -6px; min-width: 17px; height: 17px; padding: 0 3px; border-radius: 999px; background: #23303c; color: #f4ead6; border: 1px solid rgba(255,255,255,0.25); font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; }
+  .minicard--empty { background: rgba(255,255,255,0.05); border-style: dashed; opacity: 0.4; }
+  .card__rate { font-size: 10px; color: var(--muted); }
+
+  .devbar { display: flex; align-items: center; gap: 8px; }
+  .devbar__cards { display: flex; gap: 6px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+  .swap { min-height: 34px; display: flex; align-items: center; justify-content: center; gap: 4px; border-radius: 9px; border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+  .swap--dev { flex: 0 0 auto; padding: 0 10px; background: rgba(154,130,219,0.16); border-color: var(--violet); color: var(--violet-text); font-weight: 700; }
+  .devcard { display: flex; align-items: center; gap: 5px; padding: 6px 9px; border-radius: 9px; border: 1px solid var(--line); background: rgba(255,255,255,0.08); color: var(--text); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+  .devcard--new { border-style: dashed; opacity: 0.75; }
+  .devcard--kind-new { border-color: rgba(154,130,219,0.55); background: rgba(154,130,219,0.14); }
+  .devcard--shield { border-color: #7fc8e8; background: rgba(127,200,232,0.16); }
+  .icon-btn { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 9px; border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: var(--muted); font-size: 15px; cursor: pointer; }
+
+  .modal { padding: 14px; background: var(--panel); border-top: 1px solid var(--line); }
+  .modal__panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .modal__title { margin: 0; font-size: 15px; font-weight: 700; }
+  .trade-head { display: flex; align-items: center; justify-content: space-between; }
+  .trade-close { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: none; background: rgba(255,255,255,0.08); color: var(--muted); font-size: 15px; cursor: pointer; }
+  .trade-eyebrow { display: flex; justify-content: space-between; margin: 10px 0 6px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .trade-eyebrow--give { color: #f0938f; }
+  .trade-eyebrow--want { color: #9ed36a; }
+  .trade-eyebrow .count { font-variant-numeric: tabular-nums; }
+  .trade-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .trade-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line); color: var(--text); background: rgba(255,255,255,0.06); padding: 0; font-family: inherit; cursor: pointer; }
+  .trade-cell__icon { font-size: 20px; line-height: 1; }
+  .trade-cell__count { font-size: 11px; color: var(--muted); }
+  .trade-cell--give.is-filled { background: rgba(226,75,74,0.22); border-color: transparent; }
+  .trade-cell--give.is-filled .trade-cell__count { color: #f0938f; font-weight: 700; }
+  .trade-cell--want.is-filled { background: rgba(99,153,34,0.22); border-color: transparent; }
+  .trade-cell--want.is-filled .trade-cell__count { color: #9ed36a; font-weight: 700; }
+  .trade-cell:disabled { opacity: 0.32; cursor: not-allowed; }
+
+  .btn { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: var(--text); font: inherit; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn--primary { background: #d9a441; border-color: #b9862c; color: #23180a; font-weight: 700; }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .modal__actions { display: flex; gap: 8px; margin-top: 12px; }
+  .modal__actions .btn { flex: 1; }
+
+  .meter { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .meter__dots { display: flex; gap: 4px; }
+  .meter__dot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,0.06); }
+  .meter__dot--on { background: #d9a441; border-color: #b9862c; }
+
+  .cardsheet { display: flex; gap: 12px; align-items: flex-start; }
+  .cardsheet__art {
+    flex: 0 0 62px; height: 84px; border-radius: 10px; background: #f2ead9;
+    border: 1px solid rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;
+    font-size: 30px; box-shadow: 0 -1px 2px rgba(0,0,0,0.3);
+  }
+  .cardsheet__name { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
+  .cardsheet__rule { font-size: 13px; color: var(--muted); margin: 0; }
+  .cardsheet__meta { font-size: 11px; color: var(--muted); margin: 8px 0 0; }
+
+  .guide__row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; }
+  .guide__row + .guide__row { border-top: 1px solid var(--line); }
+  .guide__icon { flex: 0 0 26px; font-size: 19px; line-height: 1.2; text-align: center; }
+  .guide__name { display: block; font-size: 13px; font-weight: 600; }
+  .guide__rule { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .guide__count { margin-left: auto; flex: 0 0 auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 2px; }
+  .guide__row--new .guide__name { color: var(--violet-text); }
+  .guide__scroll { max-height: 340px; overflow-y: auto; }
+
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; }
+  .field + .field { border-top: 1px solid var(--line); }
+  .field__label { font-size: 14px; }
+  .field__label small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .toggle { width: 46px; height: 26px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.08); position: relative; cursor: pointer; flex: 0 0 auto; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--muted); }
+  .toggle--on { background: rgba(154,130,219,0.3); border-color: var(--violet); }
+  .toggle--on::after { transform: translateX(20px); background: var(--violet-text); }
+
+  .legend { margin: 34px 0 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); }
+  .legend h2 { font-size: 14px; margin: 0 0 8px; }
+  .legend ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .legend li { margin-bottom: 5px; }
+  .legend b { color: var(--text); }
+</style>
+</head>
+<body>
+
+<h1>New dev card types — mock v2</h1>
+<p class="lede">
+  Revision of v1 against your two notes. Everything else — icons, violet tint on new kinds,
+  half-point scores, Diplomat resolving at steal-time — carries over from v1 unchanged.
+</p>
+<p class="changed">
+  <b>Changed in v2:</b> (1) Merchant is a free-form mixed basket — any 3 cards out, any 3 cards in,
+  three independent 1:1 swaps in one transaction. (2) Every dev card states its rule: a confirm
+  sheet when you tap a card, plus a full deck guide covering all nine kinds.
+</p>
+
+<div class="frames">
+
+  <!-- 1. Merchant, mixed basket -->
+  <div class="frame">
+    <p class="frame__cap"><b>1 · REVISED</b> — Merchant, mixed basket</p>
+    <div class="screen">
+      <div class="modal">
+        <div class="modal__panel">
+          <div class="trade-head">
+            <h3 class="modal__title">⚖️ Merchant</h3>
+            <button class="trade-close">✕</button>
+          </div>
+          <p class="cardsheet__rule" style="margin:8px 0 0">Swap up to 3 cards with the bank, 1 for 1. Mix freely.</p>
+
+          <div class="trade-eyebrow trade-eyebrow--give"><span>Give</span><span class="count">3 / 3</span></div>
+          <div class="trade-grid">
+            <button class="trade-cell trade-cell--give is-filled"><span class="trade-cell__icon">🧱</span><span class="trade-cell__count">2</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">🌲</span><span class="trade-cell__count">1</span></button>
+            <button class="trade-cell" disabled><span class="trade-cell__icon">🐑</span><span class="trade-cell__count">0</span></button>
+            <button class="trade-cell trade-cell--give is-filled"><span class="trade-cell__icon">🌾</span><span class="trade-cell__count">1</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">⛰️</span><span class="trade-cell__count">1</span></button>
+          </div>
+
+          <div class="trade-eyebrow trade-eyebrow--want"><span>Get</span><span class="count">3 / 3</span></div>
+          <div class="trade-grid">
+            <button class="trade-cell"><span class="trade-cell__icon">🧱</span></button>
+            <button class="trade-cell trade-cell--want is-filled"><span class="trade-cell__icon">🌲</span><span class="trade-cell__count">1</span></button>
+            <button class="trade-cell trade-cell--want is-filled"><span class="trade-cell__icon">🐑</span><span class="trade-cell__count">1</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">🌾</span></button>
+            <button class="trade-cell trade-cell--want is-filled"><span class="trade-cell__icon">⛰️</span><span class="trade-cell__count">1</span></button>
+          </div>
+
+          <div class="meter">
+            <span>3 of 3 swaps used</span>
+            <span class="meter__dots">
+              <span class="meter__dot meter__dot--on"></span>
+              <span class="meter__dot meter__dot--on"></span>
+              <span class="meter__dot meter__dot--on"></span>
+            </span>
+          </div>
+          <div class="modal__actions">
+            <button class="btn">Cancel</button>
+            <button class="btn btn--primary">Swap 2🧱 1🌾 → 1🌲 1🐑 1⛰️</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame__note">
+      Both baskets fill freely across resource types. Tapping a cell steps its count; tapping past
+      what you hold clears it. Confirm stays disabled until the two totals match and neither is 0 —
+      "same number out as in" is the only rule a player has to hold in their head.
+    </p>
+  </div>
+
+  <!-- 1b. Merchant mid-fill -->
+  <div class="frame">
+    <p class="frame__cap"><b>1b · REVISED</b> — Merchant mid-fill</p>
+    <div class="screen">
+      <div class="modal">
+        <div class="modal__panel">
+          <div class="trade-head">
+            <h3 class="modal__title">⚖️ Merchant</h3>
+            <button class="trade-close">✕</button>
+          </div>
+          <div class="trade-eyebrow trade-eyebrow--give"><span>Give</span><span class="count">2 / 3</span></div>
+          <div class="trade-grid">
+            <button class="trade-cell trade-cell--give is-filled"><span class="trade-cell__icon">🧱</span><span class="trade-cell__count">2</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">🌲</span><span class="trade-cell__count">1</span></button>
+            <button class="trade-cell" disabled><span class="trade-cell__icon">🐑</span><span class="trade-cell__count">0</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">🌾</span><span class="trade-cell__count">1</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">⛰️</span><span class="trade-cell__count">1</span></button>
+          </div>
+          <div class="trade-eyebrow trade-eyebrow--want"><span>Get</span><span class="count">1 / 2</span></div>
+          <div class="trade-grid">
+            <button class="trade-cell"><span class="trade-cell__icon">🧱</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">🌲</span></button>
+            <button class="trade-cell trade-cell--want is-filled"><span class="trade-cell__icon">🐑</span><span class="trade-cell__count">1</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">🌾</span></button>
+            <button class="trade-cell" disabled><span class="trade-cell__icon">⛰️</span><span class="trade-cell__count">0</span></button>
+          </div>
+          <div class="meter"><span>Pick 1 more to take</span></div>
+          <div class="modal__actions">
+            <button class="btn">Cancel</button>
+            <button class="btn btn--primary" disabled>Pick 1 more</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame__note">
+      The "Get" header counts against what's actually been given (1 / 2), not the raw cap, so the
+      balance rule is legible without an error message. Resources the bank is out of are disabled.
+    </p>
+  </div>
+
+  <!-- 2. Card confirm sheet -->
+  <div class="frame">
+    <p class="frame__cap"><b>2 · NEW</b> — tap a card, see what it does</p>
+    <div class="screen">
+      <div class="modal">
+        <div class="modal__panel">
+          <div class="cardsheet">
+            <div class="cardsheet__art">🕊️</div>
+            <div>
+              <p class="cardsheet__name">Diplomat</p>
+              <p class="cardsheet__rule">Blocks the next attempt to steal from you. Used up when it fires.</p>
+              <p class="cardsheet__meta">1 of these in the deck · playable now</p>
+            </div>
+          </div>
+          <div class="modal__actions">
+            <button class="btn">Cancel</button>
+            <button class="btn btn--primary">Play Diplomat</button>
+          </div>
+        </div>
+      </div>
+      <div class="dock">
+        <div class="devbar">
+          <button class="swap swap--dev">Buy dev 🐑🌾⛰️</button>
+          <button class="icon-btn" title="Card guide">❓</button>
+          <div class="devbar__cards">
+            <button class="devcard devcard--shield"><span>🕊️</span><span>Diplomat</span></button>
+            <button class="devcard"><span>⚔️</span><span>Knight</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame__note">
+      No card resolves on a bare tap any more — tapping opens this sheet with the card's one-line
+      rule, then Play commits. Costs one extra tap; makes all nine kinds self-explaining and kills
+      the "what does this even do" misplay. The ❓ beside Buy dev opens the full guide.
+    </p>
+  </div>
+
+  <!-- 3. Deck guide -->
+  <div class="frame">
+    <p class="frame__cap"><b>3 · NEW</b> — deck guide, all nine kinds</p>
+    <div class="screen">
+      <div class="modal">
+        <div class="modal__panel">
+          <div class="trade-head">
+            <h3 class="modal__title">Development cards</h3>
+            <button class="trade-close">✕</button>
+          </div>
+          <div class="guide__scroll">
+            <div class="guide__row">
+              <span class="guide__icon">⚔️</span>
+              <span><span class="guide__name">Knight</span><span class="guide__rule">Move the robber and steal a card. Three of these wins Largest Army.</span></span>
+              <span class="guide__count">9</span>
+            </div>
+            <div class="guide__row">
+              <span class="guide__icon">🏆</span>
+              <span><span class="guide__name">Victory point</span><span class="guide__rule">Worth 1 point. Stays hidden until you win.</span></span>
+              <span class="guide__count">4</span>
+            </div>
+            <div class="guide__row">
+              <span class="guide__icon">🛣️</span>
+              <span><span class="guide__name">Road building</span><span class="guide__rule">Build 2 roads free.</span></span>
+              <span class="guide__count">2</span>
+            </div>
+            <div class="guide__row">
+              <span class="guide__icon">💰</span>
+              <span><span class="guide__name">Monopoly</span><span class="guide__rule">Name a resource — every player hands you all of theirs.</span></span>
+              <span class="guide__count">2</span>
+            </div>
+            <div class="guide__row">
+              <span class="guide__icon">🎁</span>
+              <span><span class="guide__name">Year of plenty</span><span class="guide__rule">Take any 2 resources from the bank.</span></span>
+              <span class="guide__count">2</span>
+            </div>
+            <div class="guide__row guide__row--new">
+              <span class="guide__icon">⚖️</span>
+              <span><span class="guide__name">Merchant</span><span class="guide__rule">Swap up to 3 cards with the bank, 1 for 1. Mix freely.</span></span>
+              <span class="guide__count">2</span>
+            </div>
+            <div class="guide__row guide__row--new">
+              <span class="guide__icon">🧭</span>
+              <span><span class="guide__name">Trailblazer</span><span class="guide__rule">Build 1 road free.</span></span>
+              <span class="guide__count">2</span>
+            </div>
+            <div class="guide__row guide__row--new">
+              <span class="guide__icon">🕊️</span>
+              <span><span class="guide__name">Diplomat</span><span class="guide__rule">Blocks the next attempt to steal from you. Used up when it fires.</span></span>
+              <span class="guide__count">1</span>
+            </div>
+            <div class="guide__row guide__row--new">
+              <span class="guide__icon">🎖️</span>
+              <span><span class="guide__name">Merit</span><span class="guide__rule">Worth half a point, and take 1 resource from the bank. Two make a full point.</span></span>
+              <span class="guide__count">1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame__note">
+      Same shape as the existing build-cost guide, so it's a known pattern rather than a new idiom.
+      Counts are what's left in the deck. With the setting off it lists the standard five (14/5/2/2/2)
+      — the guide isn't new-deck-only, since the original cards never explained themselves either.
+    </p>
+  </div>
+
+  <!-- 4. Dev bar -->
+  <div class="frame">
+    <p class="frame__cap">4 · carried from v1 — dev bar</p>
+    <div class="screen">
+      <div class="topbar">
+        <span class="setchip">🃏 <small>NEW DECK</small></span>
+        <div class="strip">
+          <span class="chip chip--active" style="--c:#e2483c"><span class="chip__dot"></span>Red <span class="chip__vp"><b>7.5</b></span></span>
+          <span class="chip" style="--c:#3d7fd6"><span class="chip__dot"></span>Blue <span class="chip__vp"><b>5.5</b></span></span>
+        </div>
+      </div>
+      <div class="stage">board</div>
+      <div class="dock">
+        <div class="status"><b>Your turn.</b> Play a card or build.</div>
+        <div class="devbar">
+          <button class="swap swap--dev">Buy dev 🐑🌾⛰️</button>
+          <button class="icon-btn" title="Card guide">❓</button>
+          <div class="devbar__cards">
+            <button class="devcard"><span>⚔️</span><span>Knight</span></button>
+            <button class="devcard devcard--kind-new"><span>⚖️</span><span>Merchant</span></button>
+            <button class="devcard devcard--kind-new devcard--new"><span>🎖️</span><span>Merit</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame__note">Only change since v1: the ❓ guide button between Buy dev and the cards.</p>
+  </div>
+
+  <!-- 5. Merit -->
+  <div class="frame">
+    <p class="frame__cap">5 · carried from v1 — Merit</p>
+    <div class="screen">
+      <div class="modal">
+        <div class="modal__panel">
+          <div class="trade-head"><h3 class="modal__title">🎖️ Merit — pick a free resource</h3></div>
+          <p class="cardsheet__rule" style="margin:8px 0 0">Worth half a point, and take 1 resource from the bank.</p>
+          <div class="trade-eyebrow trade-eyebrow--want"><span>From the bank</span></div>
+          <div class="trade-grid">
+            <button class="trade-cell"><span class="trade-cell__icon">🧱</span><span class="trade-cell__count">12</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">🌲</span><span class="trade-cell__count">9</span></button>
+            <button class="trade-cell trade-cell--want is-filled"><span class="trade-cell__icon">🐑</span><span class="trade-cell__count">14</span></button>
+            <button class="trade-cell"><span class="trade-cell__icon">🌾</span><span class="trade-cell__count">7</span></button>
+            <button class="trade-cell" disabled><span class="trade-cell__icon">⛰️</span><span class="trade-cell__count">0</span></button>
+          </div>
+          <div class="meter"><span>Score 7 → <b style="color:var(--violet-text)">7.5</b> · two Merits make a full point</span></div>
+          <div class="modal__actions"><button class="btn btn--primary">Take 🐑</button></div>
+        </div>
+      </div>
+    </div>
+    <p class="frame__note">Only addition: the rule line under the title — same string the guide uses.</p>
+  </div>
+
+  <!-- 6. Diplomat -->
+  <div class="frame">
+    <p class="frame__cap">6 · carried from v1 — Diplomat fires</p>
+    <div class="screen">
+      <div class="stage">robber placed on Red's hex</div>
+      <div class="dock">
+        <div class="status">🕊️ <b>Red played a Diplomat</b> — the steal was blocked. Shield used up.</div>
+        <div class="hand">
+          <span class="stack"><span class="minicard">🧱<span class="minicard__count">3</span></span><span class="card__rate">4:1</span></span>
+          <span class="stack"><span class="minicard">🌲<span class="minicard__count">1</span></span><span class="card__rate">4:1</span></span>
+          <span class="stack"><span class="minicard minicard--empty">🐑</span><span class="card__rate">4:1</span></span>
+          <span class="stack"><span class="minicard">🌾<span class="minicard__count">2</span></span><span class="card__rate">2:1</span></span>
+          <span class="stack"><span class="minicard">⛰️<span class="minicard__count">1</span></span><span class="card__rate">4:1</span></span>
+        </div>
+      </div>
+    </div>
+    <p class="frame__note">Placement always legal; the steal fizzles at resolution, so no bot behaviour leaks the shield.</p>
+  </div>
+
+  <!-- 7. Lobby -->
+  <div class="frame">
+    <p class="frame__cap">7 · carried from v1 — lobby toggle</p>
+    <div class="screen">
+      <div class="modal">
+        <div class="modal__panel">
+          <h3 class="modal__title">Game settings</h3>
+          <div class="field">
+            <span class="field__label">Public hands<small>Everyone's cards visible</small></span>
+            <span class="toggle"></span>
+          </div>
+          <div class="field">
+            <span class="field__label">New dev card types<small>Adds 4 kinds, fewer knights</small></span>
+            <span class="toggle toggle--on"></span>
+          </div>
+          <p class="frame__note">
+            9 knight · 4 victory · 2 road · 2 monopoly · 2 plenty · 2 merchant · 2 trailblazer ·
+            1 diplomat · 1 merit = 25. With Santa mode on, Diplomat drops and knights go to 10.
+          </p>
+          <div class="modal__actions"><button class="btn">❓ What do the cards do?</button></div>
+        </div>
+      </div>
+    </div>
+    <p class="frame__note">
+      v1's deck table is replaced by the guide, which carries both counts and rules — reachable from
+      the lobby too, so a new player can read the deck before the game starts.
+    </p>
+  </div>
+
+</div>
+
+<div class="legend">
+  <h2>Open for your verdict</h2>
+  <ul>
+    <li><b>Confirm-before-play costs a tap on every card, including Knight.</b> Alternative: show the sheet only the first time you play each kind, then revert to one tap. Say which you want.</li>
+    <li><b>Rule wording</b> — the nine one-liners in frame 3 are the strings that would actually ship. Reword any that read wrong.</li>
+    <li><b>Merchant cap</b> — up to 3 cards out, same number back. Confirm that's what you meant by "3 different 1:1 trades".</li>
+    <li><b>Guide reachability</b> — ❓ next to Buy dev, and a button in the lobby. Enough places?</li>
+  </ul>
+</div>
+
+</body>
+</html>
