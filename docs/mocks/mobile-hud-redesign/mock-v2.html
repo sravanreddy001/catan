@@ -61,7 +61,7 @@
   /* The board is width-bound on a 390px phone, so some sea is unavoidable.
      Centring splits it evenly instead of dumping it all under the board. */
   .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
-         padding:8px 3px;
+         padding:8px 0;
          background:radial-gradient(circle at 50% 34%,#1b5177 0%,var(--sea) 55%,var(--bg) 100%);
          position:relative}
   .stage svg{width:100%;height:auto;display:block}
@@ -185,7 +185,9 @@
       </div>
 
       <div class="stage">
-        <svg viewBox="0 0 400 380" class="bd"></svg>
+        <!-- viewBox cropped to the hex cluster's real bounds (was 0 0 400 380,
+             which padded ~18% of empty space around the board). -->
+        <svg viewBox="34 22 332 314" class="bd"></svg>
         <div class="dice">
           <div class="die"><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i></div>
           <div class="die"><i></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i></div>
@@ -229,9 +231,10 @@
     </div>
 
     <div class="notes">
-      Board <span class="metric">382 × 363 px — 42%</span> of the screen (30.7% before the rail work, 3.4% on the current build)<br>
-      <b>+</b> both side edges of the board are free; nothing overlaps the hexes.<br>
-      <b>+</b> every resource count and the card count readable without a tap.
+      Hexes <span class="metric">384 × 355 px — 41.5%</span> of the screen (30.7% before the rail work, 3.4% on the current build)<br>
+      <b>+</b> board runs edge to edge; no side margin, nothing overlaps the hexes.<br>
+      <b>+</b> every resource count and the card count readable without a tap.<br>
+      <b>!</b> the crop assumes ports sit <i>inside</i> the frame — see the note below.
     </div>
   </div>
 
@@ -255,7 +258,9 @@
       </div>
 
       <div class="stage">
-        <svg viewBox="0 0 400 380" class="bd"></svg>
+        <!-- viewBox cropped to the hex cluster's real bounds (was 0 0 400 380,
+             which padded ~18% of empty space around the board). -->
+        <svg viewBox="34 22 332 314" class="bd"></svg>
         <div class="dice">
           <div class="die"><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i></div>
           <div class="die"><i></i><i></i><i></i><i></i><i class="o"></i><i></i><i></i><i></i><i></i></div>
@@ -324,6 +329,19 @@
     stays exposed — all five numbers are readable at once. Five cards occupy 182 px, leaving the stack and its
     label the right half of the row. A resource you hold none of keeps its slot as a dashed card showing
     <code>0</code>, so the fan never re-flows as your hand changes.
+  </div>
+
+  <h3>Where the side margin actually was</h3>
+  <div class="callout">
+    Reducing the stage padding was not the win — it was already 3 px. The margin came from the board's own
+    <b>viewBox</b>, which enclosed ~18% empty space around the hex cluster. Cropping it to the cluster's real
+    bounds took the painted hexes from <b>314 px</b> wide to <b>384 px</b> — a <b>22% linear increase</b> with
+    no layout change at all.
+    <br><br>
+    <b>Caveat for the build.</b> This mock draws no harbours. The real board's bounds include the port markers
+    out at sea, so cropping this tight would clip them. In the app the equivalent change is to compute the
+    frame from the ports' outer bounds rather than a fixed pad — same effect, harbours intact. Expect a
+    slightly smaller gain than 22% once they are accounted for.
   </div>
 
   <h3>Fixed-slot rules this layout commits to</h3>
