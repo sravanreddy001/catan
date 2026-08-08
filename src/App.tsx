@@ -392,7 +392,12 @@ export default function App() {
           longestRoad={longestRoad}
           vpTarget={state.settings.vpTarget}
         />
-        <button className="btn btn--ghost btn--icon-only" onClick={() => setShowGuide(true)} title="What things cost">
+        <button
+          className="btn btn--ghost btn--icon-only"
+          onClick={() => setShowGuide(true)}
+          title="What things cost"
+          aria-label="Cost guide — what each piece and card costs"
+        >
           ?
         </button>
         <button

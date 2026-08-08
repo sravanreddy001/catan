@@ -303,6 +303,16 @@ function costLabel(kind: BuildKind): string {
     .join('')
 }
 
+/**
+ * Spoken form of a build cost. The visible label is a row of resource emoji,
+ * which a screen reader reads as "brick brick" or not at all, so the
+ * accessible name spells the cost out in words instead.
+ */
+function costSpoken(kind: BuildKind): string {
+  const parts = Object.entries(COSTS[kind]).map(([res, n]) => `${n} ${res}`)
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]
+}
+
 const BUILD_KINDS: BuildKind[] = ['road', 'settlement', 'city']
 
 /** What each piece and a dev card costs — the icon-only build buttons need this spelled out somewhere. */
@@ -372,7 +382,12 @@ export function DevBar({
       >
         Buy dev 🐑🌾⛰️
       </button>
-      <button className="btn btn--icon-only" onClick={onGuide} title="What do the cards do?">
+      <button
+        className="btn btn--icon-only"
+        onClick={onGuide}
+        title="What do the cards do?"
+        aria-label="Development card guide — what each card does"
+      >
         ❓
       </button>
       <div className="devbar__cards">
@@ -1027,6 +1042,11 @@ export function ActionBar({
               disabled={!canAfford(player, k)}
               onClick={() => (mode === k ? onCancel() : onBuild(k))}
               title={`${BUILD_LABEL[k]}: ${costLabel(k)}`}
+              /* The button's only content is a bare SVG shape, so without this
+                 it has no accessible name at all — and `title` never surfaces
+                 on touch. */
+              aria-label={`Build ${BUILD_LABEL[k].toLowerCase()} — costs ${costSpoken(k)}`}
+              aria-pressed={mode === k}
             >
               <PieceIcon kind={k} color={player.color} dark={player.dark} />
             </button>
