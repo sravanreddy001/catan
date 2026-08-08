@@ -319,28 +319,28 @@ interface TradeBarProps {
   player: Player
   rates: Record<Resource, number>
   onTrade: (give: Resource, get: Resource) => void
+  disabled?: boolean
 }
 
 /** Bank / harbour trade: pick what to give, then what to take. */
-export function TradeBar({ player, rates, onTrade }: TradeBarProps) {
+export function TradeBar({ player, rates, onTrade, disabled = false }: TradeBarProps) {
   const [give, setGive] = useState<Resource | null>(null)
 
-  const affordable = (r: Resource) => player.hand[r] >= rates[r]
-
-  if (!RESOURCES.some(affordable)) return null
+  const affordable = (r: Resource) => !disabled && player.hand[r] >= rates[r]
+  const hasAnyAffordable = RESOURCES.some((r) => player.hand[r] >= rates[r])
 
   return (
-    <div className="trade">
+    <div className={`trade${disabled || !hasAnyAffordable ? ' trade--disabled' : ''}`}>
       <span className="trade__label">{give ? `Give ${rates[give]} ${give} for:` : 'Trade:'}</span>
       <div className="trade__row">
         {RESOURCES.map((r) => {
           const selecting = give === null
-          const disabled = selecting ? !affordable(r) : r === give
+          const isBtnDisabled = disabled || (selecting ? !affordable(r) : r === give)
           return (
             <button
               key={r}
               className={`swap${give === r ? ' swap--on' : ''}`}
-              disabled={disabled}
+              disabled={isBtnDisabled}
               onClick={() => {
                 if (selecting) setGive(r)
                 else {
@@ -354,7 +354,7 @@ export function TradeBar({ player, rates, onTrade }: TradeBarProps) {
             </button>
           )
         })}
-        {give && (
+        {give && !disabled && (
           <button className="swap swap--cancel" onClick={() => setGive(null)} aria-label="Cancel selection">
             ✕
           </button>
@@ -436,9 +436,9 @@ export function BuildGuide({ onClose, bank }: { onClose: () => void; bank?: Reco
 interface DevBarProps {
   player: Player
   deckCount: number
-  /** Blocked while a robber move or another card is resolving. */
   busy: boolean
   playedThisTurn: boolean
+  disabled?: boolean
   onBuy: () => void
   onPlay: (card: DevCard) => void
   onGuide: () => void
@@ -452,15 +452,16 @@ export function DevBar({
   deckCount,
   busy,
   playedThisTurn,
+  disabled = false,
   onBuy,
   onPlay,
   onGuide,
 }: DevBarProps) {
   return (
-    <div className="devbar">
+    <div className={`devbar${disabled ? ' devbar--disabled' : ''}`}>
       <button
         className="swap swap--dev"
-        disabled={!canAffordDev(player) || deckCount === 0 || busy}
+        disabled={disabled || !canAffordDev(player) || deckCount === 0 || busy}
         onClick={onBuy}
         title={`${deckCount} cards left in the deck`}
       >
@@ -477,7 +478,7 @@ export function DevBar({
       <div className="devbar__cards">
         {player.devCards.length === 0 && <span className="devbar__empty">no cards</span>}
         {player.devCards.map((c) => {
-          const playable = c.kind !== 'victory' && c.ready && !playedThisTurn && !busy && !c.spent
+          const playable = !disabled && c.kind !== 'victory' && c.ready && !playedThisTurn && !busy && !c.spent
           const classes = [
             'devcard',
             c.ready ? '' : 'devcard--new',
@@ -1091,6 +1092,7 @@ interface ActionBarProps {
   player: Player
   mode: BuildKind | 'robber' | null
   hasRolled: boolean
+  myTurn?: boolean
   /** Hidden in a solo game — nobody to trade with. */
   canOffer: boolean
   onBuild: (kind: BuildKind) => void
@@ -1104,6 +1106,7 @@ export function ActionBar({
   player,
   mode,
   hasRolled,
+  myTurn = true,
   canOffer,
   onBuild,
   onRoll,
@@ -1112,43 +1115,55 @@ export function ActionBar({
   onOffer,
 }: ActionBarProps) {
   const kinds: BuildKind[] = ['road', 'settlement', 'city']
+  const canRoll = myTurn && !hasRolled
+  const canAct = myTurn && hasRolled && mode !== 'robber'
+
   return (
-    <div className={`actions${!hasRolled ? ' actions--roll' : ''}`}>
-      {!hasRolled ? (
-        <button className="btn btn--roll" onClick={onRoll}>
+    <div className="actions">
+      <div className="actions__grid">
+        <button
+          className="btn btn--roll"
+          disabled={!canRoll}
+          onClick={onRoll}
+        >
           <span className="btn__roll-icon">🎲</span>
-          <span className="btn__label">Roll dice</span>
+          <span className="btn__label">{hasRolled ? 'Rolled ✓' : 'Roll dice'}</span>
         </button>
-      ) : (
-        <>
-          {kinds.map((k) => (
-            <button
-              key={k}
-              className={`btn btn--build${mode === k ? ' btn--on' : ''}`}
-              disabled={!canAfford(player, k)}
-              onClick={() => (mode === k ? onCancel() : onBuild(k))}
-              title={`${BUILD_LABEL[k]}: ${costLabel(k)}`}
-              /* The button carries an accessible name and pressed state */
-              aria-label={`Build ${BUILD_LABEL[k].toLowerCase()} — costs ${costSpoken(k)}`}
-              aria-pressed={mode === k}
-            >
-              <div className="btn__build-header">
-                <PieceIcon kind={k} color={player.color} dark={player.dark} />
-                <span className="btn__label">{BUILD_LABEL[k]}</span>
-              </div>
-              <span className="btn__cost">{costLabel(k)}</span>
-            </button>
-          ))}
+
+        <div className="actions__build-row">
+          {kinds.map((k) => {
+            const canBuild = canAct && canAfford(player, k)
+            return (
+              <button
+                key={k}
+                className={`btn btn--build${mode === k ? ' btn--on' : ''}`}
+                disabled={!canBuild}
+                onClick={() => (mode === k ? onCancel() : onBuild(k))}
+                title={`${BUILD_LABEL[k]}: ${costLabel(k)}`}
+                aria-label={`Build ${BUILD_LABEL[k].toLowerCase()} — costs ${costSpoken(k)}`}
+                aria-pressed={mode === k}
+              >
+                <div className="btn__build-header">
+                  <PieceIcon kind={k} color={player.color} dark={player.dark} />
+                  <span className="btn__label">{BUILD_LABEL[k]}</span>
+                </div>
+                <span className="btn__cost">{costLabel(k)}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="actions__footer-row">
           {canOffer && (
-            <button className="btn btn--trade" onClick={onOffer} disabled={mode === 'robber'}>
+            <button className="btn btn--trade" onClick={onOffer} disabled={!canAct}>
               <span className="btn__label">Trade</span>
             </button>
           )}
-          <button className="btn btn--primary btn--end-turn" onClick={onEndTurn} disabled={mode === 'robber'}>
+          <button className="btn btn--primary btn--end-turn" onClick={onEndTurn} disabled={!canAct}>
             <span className="btn__label">End turn</span>
           </button>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   )
 }

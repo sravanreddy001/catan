@@ -1541,7 +1541,34 @@ body {
   .actions {
     display: flex;
     flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .actions__grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .actions__build-row {
+    display: flex;
+    flex-direction: column;
     gap: 8px;
+    width: 100%;
+  }
+
+  .actions__footer-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .trade--disabled,
+  .devbar--disabled {
+    opacity: 0.55;
+    filter: grayscale(0.2);
   }
 
   .btn--build {
@@ -1569,10 +1596,12 @@ body {
   .btn--trade,
   .btn--end-turn {
     min-height: 44px;
+    flex: 1;
   }
 
   .btn--roll {
     width: 100%;
+    min-height: 46px;
   }
 
   .dice {

@@ -646,44 +646,44 @@ export default function App() {
               )}
             </div>
 
-            {myTurn && state.phase === 'play' && state.hasRolled && state.mode !== 'robber' && (
-              <TradeBar
-                player={current}
-                rates={rates}
-                onTrade={(give, get) => dispatch({ type: 'bankTrade', give, get })}
-              />
-            )}
+            <TradeBar
+              player={current}
+              rates={rates}
+              disabled={!myTurn || state.phase !== 'play' || !state.hasRolled || state.mode === 'robber'}
+              onTrade={(give, get) => dispatch({ type: 'bankTrade', give, get })}
+            />
 
-            {myTurn && state.phase === 'play' && state.hasRolled && (
-              <DevBar
-                player={current}
-                deckCount={state.deck.length}
-                busy={
-                  state.mode === 'robber' ||
-                  state.freeRoads > 0 ||
-                  state.picking !== null ||
-                  state.merchant !== null
-                }
-                playedThisTurn={state.playedDev}
-                onBuy={() => dispatch({ type: 'buyDev' })}
-                onPlay={(card) => setConfirmCard(card)}
-                onGuide={() => setShowCardGuide(true)}
-              />
-            )}
+            <DevBar
+              player={current}
+              deckCount={state.deck.length}
+              busy={
+                !myTurn ||
+                state.phase !== 'play' ||
+                !state.hasRolled ||
+                state.mode === 'robber' ||
+                state.freeRoads > 0 ||
+                state.picking !== null ||
+                state.merchant !== null
+              }
+              disabled={!myTurn || state.phase !== 'play' || !state.hasRolled}
+              playedThisTurn={state.playedDev}
+              onBuy={() => dispatch({ type: 'buyDev' })}
+              onPlay={(card) => setConfirmCard(card)}
+              onGuide={() => setShowCardGuide(true)}
+            />
 
-            {myTurn && state.phase === 'play' && (
-              <ActionBar
-                player={current}
-                mode={state.mode}
-                hasRolled={state.hasRolled}
-                onBuild={(kind: BuildKind) => dispatch({ type: 'setMode', mode: kind })}
-                onRoll={roll}
-                onEndTurn={() => dispatch({ type: 'endTurn' })}
-                onCancel={() => dispatch({ type: 'setMode', mode: null })}
-                canOffer={state.players.length > 1}
-                onOffer={() => setComposingOffer(true)}
-              />
-            )}
+            <ActionBar
+              player={current}
+              mode={state.mode}
+              hasRolled={state.hasRolled}
+              myTurn={myTurn && state.phase === 'play'}
+              onBuild={(kind: BuildKind) => dispatch({ type: 'setMode', mode: kind })}
+              onRoll={roll}
+              onEndTurn={() => dispatch({ type: 'endTurn' })}
+              onCancel={() => dispatch({ type: 'setMode', mode: null })}
+              canOffer={state.players.length > 1}
+              onOffer={() => setComposingOffer(true)}
+            />
           </footer>
         </div>
       </div>
