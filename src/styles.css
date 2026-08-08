@@ -1632,6 +1632,30 @@ body {
     overflow: visible;
   }
 
+  /*
+   * A 210px tooltip centred on a quarter-width chip hangs past the viewport at
+   * both ends, which gives the page a sideways scroll even while the tooltip is
+   * hidden. The end chips anchor to their own edge instead.
+   */
+  .strip .chip:first-child .chip__tooltip {
+    left: 0;
+    right: auto;
+    transform: none;
+  }
+
+  .strip .chip:last-child .chip__tooltip {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+
+  .strip .chip:first-child:hover .chip__tooltip,
+  .strip .chip:first-child:focus-visible .chip__tooltip,
+  .strip .chip:last-child:hover .chip__tooltip,
+  .strip .chip:last-child:focus-visible .chip__tooltip {
+    transform: translateY(2px);
+  }
+
   .chip {
     padding: 4px 6px;
     font-size: 12px;
@@ -1680,6 +1704,11 @@ body {
   .dock {
     flex: none;
     display: grid;
+    /* The base rule's `justify-content: flex-start` still applies once this is
+       a grid, where it packs the single implicit column at max-content and
+       leaves a dead gutter down the right. An explicit 1fr column makes every
+       row span the dock. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 74px auto auto auto;
     gap: 8px;
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
