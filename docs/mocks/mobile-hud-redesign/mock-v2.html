@@ -128,8 +128,8 @@
   .bbtn.off{opacity:.4}
   .bbtn.on{outline:2px solid var(--gold);background:rgba(255,217,119,.18)}
 
-  /* row 3 — roll / trade / end (Option A) */
-  .mainrow{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:8px}
+  /* row 3 — trade + one turn button (roll and end turn share the slot) */
+  .mainrow{display:grid;grid-template-columns:1fr 1.35fr;gap:8px}
   .mbtn{display:flex;align-items:center;justify-content:center;gap:5px;border-radius:11px;
         border:1px solid var(--line);background:rgba(255,255,255,.08);font-size:13px;font-weight:600}
   .mbtn.roll{background:var(--gold);color:#1a2330;border-color:transparent;font-weight:700}
@@ -221,9 +221,10 @@
           <div class="bbtn"><span class="ic">🃏</span><span class="lb">Buy</span><span class="ct">🐑🌾⛰️</span></div>
         </div>
 
-        <!-- row 3 : roll / trade / end (Option A) -->
+        <!-- row 3 : trade + the single turn button, pinned right.
+             Same slot, same pixels: reads "Roll dice" until you roll, then
+             "End turn". It never moves and never unmounts. -->
         <div class="mainrow">
-          <div class="mbtn off">🎲 Rolled ✓</div>
           <div class="mbtn trade">Trade</div>
           <div class="mbtn primary">End turn</div>
         </div>
@@ -294,9 +295,8 @@
         </div>
 
         <div class="mainrow">
-          <div class="mbtn off">🎲 Roll</div>
           <div class="mbtn trade off">Trade</div>
-          <div class="mbtn primary off">End turn</div>
+          <div class="mbtn primary off">🎲 Roll dice</div>
         </div>
       </div>
     </div>
@@ -316,7 +316,7 @@
   <table>
     <tr><th>Region</th><th>Source</th><th>Change from that option</th></tr>
     <tr><td>Build row</td><td>A — Edge rails</td><td>Unchanged: Road / Settle / City / Buy, icon + name + cost</td></tr>
-    <tr><td>Roll / Trade / End</td><td>A — Edge rails</td><td>Roll joins the row as a permanent third slot instead of replacing the others</td></tr>
+    <tr><td>Trade + turn button</td><td>A — Edge rails</td><td>Roll and End turn merged into one right-hand slot; the row is now two buttons, not three</td></tr>
     <tr><td>Hand, bottom-left</td><td>C — Corner pods</td><td>All 5 slots instead of 3; fanned with explicit z-order so counts never hide</td></tr>
     <tr><td>Card stack, bottom-right</td><td>B — Left rail + thumb</td><td>Moved from the right edge into the bottom row</td></tr>
     <tr><td>Side rails</td><td>—</td><td>Dropped. The board gets both edges back.</td></tr>
@@ -348,8 +348,12 @@
 
   <h3>Fixed-slot rules this layout commits to</h3>
   <ul>
-    <li><b>Every control is always mounted.</b> Roll does not swap out for the build buttons — it dims to
-      "Rolled ✓" in place. Trade and End turn dim rather than disappear.</li>
+    <li><b>Roll and End turn are one button, pinned bottom-right.</b> It is the only control whose label
+      changes: "🎲 Roll dice" until you roll, "End turn" after. Same rect, same colour, same thumb position,
+      so the turn's two actions live at one address instead of two. The rule that makes it safe is that the
+      label only ever flips on your own input — never on a bot tick — so it cannot change under your thumb.</li>
+    <li><b>Every other control is always mounted.</b> Build buttons and Trade dim in place rather than
+      disappearing.</li>
     <li><b>The dock's three rows have fixed heights</b> (<code>grid-template-rows:74px 62px 50px</code>), so
       the board's height is a constant and never re-measures mid-turn.</li>
     <li><b>The dock always shows you, never the active player.</b> Hand, cards and build affordability read
