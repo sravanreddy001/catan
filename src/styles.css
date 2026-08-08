@@ -962,69 +962,43 @@ body {
   color: var(--text);
 }
 
-/* ---------- trade composer (two columns) ---------- */
+/* ---------- trade composer (four rows, five resource columns) ---------- */
 
 .modal__panel--trade {
   width: min(100%, 520px);
 }
 
-.trade-columns {
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
+/*
+ * One grid for all four rows, so brick sits under brick the whole way down.
+ * The eyebrows span the full width and act as the row separators.
+ */
+.trade4 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
   margin: 12px 0;
 }
 
-.trade-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-}
-
-.trade-col-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.trade-col-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.trade-col-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.trade-col-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-
-.trade-col-held {
+.trade4__eyebrow {
+  grid-column: 1 / -1;
+  margin-top: 8px;
   font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--muted);
-}
-
-.trade-arrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
   font-weight: 700;
-  color: #f3c969;
-  flex: 0 0 auto;
+  text-align: left;
 }
 
+.trade4__eyebrow:first-child {
+  margin-top: 0;
+}
+
+.trade4__eyebrow--want {
+  color: #7fe0d8;
+}
+
+/* Also worn by the merchant panel and the incoming-offer sheet. */
 .trade-eyebrow {
   display: block;
   font-size: 11px;
@@ -1041,6 +1015,81 @@ body {
 
 .trade-eyebrow--want {
   color: #7fe0d8;
+}
+
+.trade4__eyebrow--give {
+  color: #e09f67;
+}
+
+.trade4__pick,
+.trade4__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.trade4__pick:hover:not(:disabled) {
+  background: rgba(243, 201, 105, 0.2);
+  border-color: #f3c969;
+}
+
+.trade4__pick:active:not(:disabled),
+.trade4__cell:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.trade4__pick:disabled,
+.trade4__cell:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* The staged rows read as a tally, so an empty column stays a placeholder
+   rather than disappearing and shifting the ones beside it. */
+.trade4__cell {
+  border-style: dashed;
+  background: transparent;
+}
+
+.trade4__cell--on {
+  border-style: solid;
+}
+
+.trade4__cell--want.trade4__cell--on {
+  border-color: #7fe0d8;
+  background: rgba(127, 224, 216, 0.14);
+}
+
+.trade4__cell--give.trade4__cell--on {
+  border-color: #e09f67;
+  background: rgba(224, 159, 103, 0.14);
+}
+
+.trade4__icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.trade4__count {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.trade4__held {
+  font-size: 10px;
+  color: var(--muted);
 }
 
 .btn--propose:disabled {
@@ -1724,11 +1773,12 @@ body {
   }
 
   @media (max-width: 480px) {
-    .trade-columns {
-      flex-direction: column;
+    .trade4__pick,
+    .trade4__cell {
+      min-height: 46px;
     }
-    .trade-arrow {
-      transform: rotate(90deg);
+    .trade4__icon {
+      font-size: 18px;
     }
   }
 }

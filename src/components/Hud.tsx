@@ -895,59 +895,76 @@ export function OfferComposer({
           </button>
         </div>
 
-        <div className="trade-columns">
-          {/* Left Column: You give */}
-          <div className="trade-col">
-            <span className="trade-eyebrow trade-eyebrow--give">
-              You give ({totalCount(give)})
-            </span>
-            <div className="trade-col-list">
-              {RESOURCES.map((r) => {
-                const held = player.hand[r] ?? 0
-                const count = give[r] ?? 0
-                return (
-                  <div key={r} className="trade-col-row">
-                    <div className="trade-col-info">
-                      <span className="trade-col-icon">{RESOURCE_ICON[r]}</span>
-                      <span className="trade-col-held">held {held}</span>
-                    </div>
-                    <Stepper
-                      value={count}
-                      max={held}
-                      onChange={(n) => setGive({ ...give, [r]: n })}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+        {/*
+          * Four rows over five fixed resource columns: pick what you want, see
+          * it, see what you are giving, pick what you give. A resource keeps
+          * the same column in all four rows, so a trade reads as two vertical
+          * pairs instead of two lists that have to be matched up by icon.
+          */}
+        <div className="trade4">
+          <span className="trade4__eyebrow trade4__eyebrow--want">Pick what you want</span>
+          {RESOURCES.map((r) => (
+            <button
+              key={`want-pick-${r}`}
+              className="trade4__pick"
+              aria-label={`Ask for one more ${r}`}
+              onClick={() => setWant((w) => ({ ...w, [r]: (w[r] ?? 0) + 1 }))}
+            >
+              <span className="trade4__icon">{RESOURCE_ICON[r]}</span>
+            </button>
+          ))}
 
-          <div className="trade-arrow" aria-hidden="true">
-            ⇄
-          </div>
+          <span className="trade4__eyebrow">You get ({totalCount(want)})</span>
+          {RESOURCES.map((r) => {
+            const n = want[r] ?? 0
+            return (
+              <button
+                key={`want-cell-${r}`}
+                className={`trade4__cell trade4__cell--want${n > 0 ? ' trade4__cell--on' : ''}`}
+                disabled={n === 0}
+                aria-label={`Asking for ${n} ${r} — tap to remove one`}
+                onClick={() => setWant((w) => ({ ...w, [r]: Math.max(0, (w[r] ?? 0) - 1) }))}
+              >
+                <span className="trade4__icon">{RESOURCE_ICON[r]}</span>
+                <span className="trade4__count">{n}</span>
+              </button>
+            )
+          })}
 
-          {/* Right Column: You get */}
-          <div className="trade-col">
-            <span className="trade-eyebrow trade-eyebrow--want">
-              You get ({totalCount(want)})
-            </span>
-            <div className="trade-col-list">
-              {RESOURCES.map((r) => {
-                const count = want[r] ?? 0
-                return (
-                  <div key={r} className="trade-col-row">
-                    <div className="trade-col-info">
-                      <span className="trade-col-icon">{RESOURCE_ICON[r]}</span>
-                    </div>
-                    <Stepper
-                      value={count}
-                      onChange={(n) => setWant({ ...want, [r]: n })}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          <span className="trade4__eyebrow">You give ({totalCount(give)})</span>
+          {RESOURCES.map((r) => {
+            const n = give[r] ?? 0
+            return (
+              <button
+                key={`give-cell-${r}`}
+                className={`trade4__cell trade4__cell--give${n > 0 ? ' trade4__cell--on' : ''}`}
+                disabled={n === 0}
+                aria-label={`Offering ${n} ${r} — tap to remove one`}
+                onClick={() => setGive((g) => ({ ...g, [r]: Math.max(0, (g[r] ?? 0) - 1) }))}
+              >
+                <span className="trade4__icon">{RESOURCE_ICON[r]}</span>
+                <span className="trade4__count">{n}</span>
+              </button>
+            )
+          })}
+
+          <span className="trade4__eyebrow trade4__eyebrow--give">Pick what you give</span>
+          {RESOURCES.map((r) => {
+            const held = player.hand[r] ?? 0
+            const n = give[r] ?? 0
+            return (
+              <button
+                key={`give-pick-${r}`}
+                className="trade4__pick"
+                disabled={n >= held}
+                aria-label={`Offer one more ${r} — you hold ${held}`}
+                onClick={() => setGive((g) => ({ ...g, [r]: Math.min(held, (g[r] ?? 0) + 1) }))}
+              >
+                <span className="trade4__icon">{RESOURCE_ICON[r]}</span>
+                <span className="trade4__held">{held}</span>
+              </button>
+            )
+          })}
         </div>
 
         <div className="offer__to">
