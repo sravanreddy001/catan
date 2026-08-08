@@ -10,23 +10,23 @@ See [settings-overview.md](./settings-overview.md) for shared codebase context, 
 
 **Balance status — RESOLVED by the user (2026-08-07), superseding the earlier "hold as-is" note.** The deck ratio is now locked (below), so this PRD is unblocked for Architect feasibility.
 
-**Locked deck composition (25 cards, unchanged total):**
+**Locked deck composition (25 cards, unchanged total). Revised by the user on 2026-08-08: +3 merit, −1 victory, −2 knight.**
 
 | Kind | Count |
 |---|---|
-| knight | 9 |
-| victory | 4 |
+| knight | 7 |
+| victory | 3 |
 | roadBuilding | 2 |
 | monopoly | 2 |
 | plenty | 2 |
 | merchant | 2 |
 | trailblazer | 2 |
 | diplomat | 1 |
-| merit | 1 |
+| merit | 4 |
 
-Rationale: knights drop 14 → 9, so largest army (3+ knights) stays reachable but becomes a real race; new kinds are ~24% of the deck (6/25) — enough texture without reworking the game's feel; Merit stays rare (1) so half-point VP totals are an occasional curiosity rather than a constant "why is my score .5".
+Rationale: knights drop 14 → 7, so largest army (3+ knights) stays reachable but becomes a real race; new kinds are 36% of the deck (9/25). Merit was originally a single card, which meant most games never drew it — at 4 the half-point VP totals it produces are a normal part of scoring rather than a curiosity nobody sees.
 
-This composition applies **only when the new-dev-card-types setting is enabled**; with the setting off, the deck stays at today's 14/5/2/2/2. **With Santa mode also on**, Diplomat is dropped (it blocks a robber that Santa mode removes) and its slot becomes a 10th knight: 10/4/2/2/2/2/2/0/1.
+This composition applies **only when the new-dev-card-types setting is enabled**; with the setting off, the deck stays at today's 14/5/2/2/2. **With Santa mode also on**, Diplomat is dropped (it blocks a robber that Santa mode removes) and its slot becomes an 8th knight: 8/3/2/2/2/2/2/0/4.
 
 ## Problem
 

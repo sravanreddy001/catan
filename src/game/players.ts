@@ -152,10 +152,11 @@ export function createPlayers(count = 4, colorIndices?: number[]): Player[] {
  * 25-card development deck, shuffled.
  *
  * `extraKinds` swaps the standard 14/5/2/2/2 for the expanded composition:
- * knights drop to 9 so Largest Army stays reachable but becomes a race, and
- * the four new kinds take 6 of the 25 slots. `noRobber` (Santa mode) drops
- * Diplomat — it shields against a steal that mode has removed — and gives its
- * slot back to the knights. Either way the deck is exactly 25 cards.
+ * knights drop to 7 so Largest Army stays reachable but becomes a race, and
+ * the four new kinds take 9 of the 25 slots — Merit carries 4 of those, enough
+ * that a game actually sees one. `noRobber` (Santa mode) drops Diplomat — it
+ * shields against a steal that mode has removed — and gives its slot back to
+ * the knights. Either way the deck is exactly 25 cards.
  */
 export function createDevDeck(
   rand: () => number = Math.random,
@@ -164,15 +165,15 @@ export function createDevDeck(
 ): DevKind[] {
   if (extraKinds) {
     const deck: DevKind[] = [
-      ...Array<DevKind>(noRobber ? 10 : 9).fill('knight'),
-      ...Array<DevKind>(4).fill('victory'),
+      ...Array<DevKind>(noRobber ? 8 : 7).fill('knight'),
+      ...Array<DevKind>(3).fill('victory'),
       ...Array<DevKind>(2).fill('roadBuilding'),
       ...Array<DevKind>(2).fill('monopoly'),
       ...Array<DevKind>(2).fill('plenty'),
       ...Array<DevKind>(2).fill('merchant'),
       ...Array<DevKind>(2).fill('trailblazer'),
       ...Array<DevKind>(noRobber ? 0 : 1).fill('diplomat'),
-      ...Array<DevKind>(1).fill('merit'),
+      ...Array<DevKind>(4).fill('merit'),
     ]
     return shuffle(deck, rand)
   }
