@@ -119,7 +119,10 @@ body {
 .board {
   width: 100%;
   height: 100%;
-  touch-action: manipulation;
+  /* pinch-zoom, not manipulation: the small number tokens have to be
+     zoomable, but double-tap-to-zoom stays suppressed so two quick taps on a
+     settlement spot never zoom instead of building. */
+  touch-action: pinch-zoom;
 }
 
 .tile__icon {
