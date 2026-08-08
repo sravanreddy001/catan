@@ -13,7 +13,6 @@ import {
   RESOURCES,
   RESOURCE_ICON,
   canAfford,
-  canAffordDev,
   hasCards,
   isEmptyBundle,
   formatVP,
@@ -437,13 +436,15 @@ export function BuildGuide({ onClose, bank }: { onClose: () => void; bank?: Reco
   )
 }
 
+/**
+ * Your development cards. Buying one moved into the build row — it is a fourth
+ * purchase, not a separate concept — so this is now only the cards you hold.
+ */
 interface DevBarProps {
   player: Player
-  deckCount: number
   busy: boolean
   playedThisTurn: boolean
   disabled?: boolean
-  onBuy: () => void
   onPlay: (card: DevCard) => void
   onGuide: () => void
 }
@@ -451,26 +452,19 @@ interface DevBarProps {
 /** The four kinds only dealt when the expanded deck is on, tinted to stand out. */
 const EXTRA_KINDS: DevKind[] = ['merchant', 'trailblazer', 'diplomat', 'merit']
 
+/** Matches the emoji cost strings the three build buttons carry. */
+export const DEV_COST_LABEL = '🐑🌾⛰️'
+
 export function DevBar({
   player,
-  deckCount,
   busy,
   playedThisTurn,
   disabled = false,
-  onBuy,
   onPlay,
   onGuide,
 }: DevBarProps) {
   return (
     <div className={`devbar${disabled ? ' devbar--disabled' : ''}`}>
-      <button
-        className="swap swap--dev"
-        disabled={disabled || !canAffordDev(player) || deckCount === 0 || busy}
-        onClick={onBuy}
-        title={`${deckCount} cards left in the deck`}
-      >
-        Buy dev 🐑🌾⛰️
-      </button>
       <button
         className="btn btn--icon-only"
         onClick={onGuide}
@@ -1099,7 +1093,10 @@ interface ActionBarProps {
   myTurn?: boolean
   /** Hidden in a solo game — nobody to trade with. */
   canOffer: boolean
+  /** Buying a dev card sits in the build row: it is a fourth thing you buy. */
+  canBuyDev: boolean
   onBuild: (kind: BuildKind) => void
+  onBuyDev: () => void
   onRoll: () => void
   onEndTurn: () => void
   onCancel: () => void
@@ -1112,7 +1109,9 @@ export function ActionBar({
   hasRolled,
   myTurn = true,
   canOffer,
+  canBuyDev,
   onBuild,
+  onBuyDev,
   onRoll,
   onEndTurn,
   onCancel,
@@ -1122,18 +1121,15 @@ export function ActionBar({
   const canRoll = myTurn && !hasRolled
   const canAct = myTurn && hasRolled && mode !== 'robber'
 
+  // Roll and End turn share one slot. A turn only moves one way — roll, then
+  // end — so the two are never both live, and collapsing them puts the turn's
+  // whole forward path at a single address under the thumb. The label flips on
+  // the player's own tap, never on a bot tick, so it cannot change mid-reach.
+  const rolling = !hasRolled
+
   return (
     <div className="actions">
       <div className="actions__grid">
-        <button
-          className="btn btn--roll"
-          disabled={!canRoll}
-          onClick={onRoll}
-        >
-          <span className="btn__roll-icon">🎲</span>
-          <span className="btn__label">{hasRolled ? 'Rolled ✓' : 'Roll dice'}</span>
-        </button>
-
         <div className="actions__build-row">
           {kinds.map((k) => {
             const canBuild = canAct && canAfford(player, k)
@@ -1155,6 +1151,20 @@ export function ActionBar({
               </button>
             )
           })}
+
+          <button
+            className="btn btn--build btn--buydev"
+            disabled={!canBuyDev}
+            onClick={onBuyDev}
+            title={`Buy a development card: ${DEV_COST_LABEL}`}
+            aria-label={`Buy a development card — costs 1 wool, 1 grain and 1 ore`}
+          >
+            <div className="btn__build-header">
+              <span className="btn__buydev-icon">🃏</span>
+              <span className="btn__label">Buy</span>
+            </div>
+            <span className="btn__cost">{DEV_COST_LABEL}</span>
+          </button>
         </div>
 
         <div className="actions__footer-row">
@@ -1163,8 +1173,14 @@ export function ActionBar({
               <span className="btn__label">Trade</span>
             </button>
           )}
-          <button className="btn btn--primary btn--end-turn" onClick={onEndTurn} disabled={!canAct}>
-            <span className="btn__label">End turn</span>
+          <button
+            className="btn btn--primary btn--turn"
+            onClick={rolling ? onRoll : onEndTurn}
+            disabled={rolling ? !canRoll : !canAct}
+            aria-label={rolling ? 'Roll the dice' : 'End your turn'}
+          >
+            {rolling && <span className="btn__roll-icon">🎲</span>}
+            <span className="btn__label">{rolling ? 'Roll dice' : 'End turn'}</span>
           </button>
         </div>
       </div>

@@ -36,6 +36,7 @@ import {
 import { chooseAction, chooseDiscard, respondToOffer, type AIPreset } from './game/ai'
 import {
   PALETTE,
+  canAffordDev,
   largestArmyHolder,
   scoreBreakdown,
   victoryPoints,
@@ -370,6 +371,18 @@ export default function App() {
   const viewed = seat === null ? current : state.players[seat]
   /** Discard is owed by hand, not by turn — only the local human seat sees it. */
   const myDiscardOwed = seat !== null ? state.discards[seat as PlayerId] : undefined
+  /**
+   * Anything that must resolve before another dev-card action is legal: a
+   * pending robber move, free roads still owed, a resource still to pick.
+   */
+  const devBusy =
+    !myTurn ||
+    state.phase !== 'play' ||
+    !state.hasRolled ||
+    state.mode === 'robber' ||
+    state.freeRoads > 0 ||
+    state.picking !== null ||
+    state.merchant !== null
 
   function roll() {
     setRolling(true)
@@ -626,24 +639,39 @@ export default function App() {
           </div>
 
           <footer className="dock">
-            <div className="dock__hand-section">
-              <div className="dock__section-title">
-                {state.settings.publicHands ? 'Hands' : 'Your hand'}
-              </div>
-              {state.settings.publicHands ? (
-                <div className="dock__public-hands">
-                  {state.players.map((p) => (
-                    <div key={p.id} className="dock__player-hand">
-                      <div className="dock__hand-owner">
-                        {p.name}
-                      </div>
-                      <HandBar player={p} rates={state.phase === 'play' ? rates : undefined} />
-                    </div>
-                  ))}
+            {/*
+              Row 1 — what you hold. Resources on the left, development cards on
+              the right, so one glance at one row answers "what have I got".
+            */}
+            <div className="dock__row dock__row--holdings">
+              <div className="dock__hand-section">
+                <div className="dock__section-title">
+                  {state.settings.publicHands ? 'Hands' : 'Your hand'}
                 </div>
-              ) : (
-                <HandBar player={viewed} rates={state.phase === 'play' ? rates : undefined} />
-              )}
+                {state.settings.publicHands ? (
+                  <div className="dock__public-hands">
+                    {state.players.map((p) => (
+                      <div key={p.id} className="dock__player-hand">
+                        <div className="dock__hand-owner">
+                          {p.name}
+                        </div>
+                        <HandBar player={p} rates={state.phase === 'play' ? rates : undefined} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <HandBar player={viewed} rates={state.phase === 'play' ? rates : undefined} />
+                )}
+              </div>
+
+              <DevBar
+                player={viewed}
+                busy={devBusy}
+                disabled={!myTurn || state.phase !== 'play' || !state.hasRolled}
+                playedThisTurn={state.playedDev}
+                onPlay={(card) => setConfirmCard(card)}
+                onGuide={() => setShowCardGuide(true)}
+              />
             </div>
 
             <TradeBar
@@ -653,27 +681,10 @@ export default function App() {
               onTrade={(give, get) => dispatch({ type: 'bankTrade', give, get })}
             />
 
-            <DevBar
-              player={current}
-              deckCount={state.deck.length}
-              busy={
-                !myTurn ||
-                state.phase !== 'play' ||
-                !state.hasRolled ||
-                state.mode === 'robber' ||
-                state.freeRoads > 0 ||
-                state.picking !== null ||
-                state.merchant !== null
-              }
-              disabled={!myTurn || state.phase !== 'play' || !state.hasRolled}
-              playedThisTurn={state.playedDev}
-              onBuy={() => dispatch({ type: 'buyDev' })}
-              onPlay={(card) => setConfirmCard(card)}
-              onGuide={() => setShowCardGuide(true)}
-            />
-
             <ActionBar
               player={current}
+              canBuyDev={!devBusy && canAffordDev(current) && state.deck.length > 0}
+              onBuyDev={() => dispatch({ type: 'buyDev' })}
               mode={state.mode}
               hasRolled={state.hasRolled}
               myTurn={myTurn && state.phase === 'play'}

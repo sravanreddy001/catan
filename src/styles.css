@@ -337,9 +337,18 @@ body {
   justify-content: flex-start;
 }
 
+/* Resources left, development cards right — one row for "what have I got". */
+.dock__row--holdings {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
 .dock__hand-section {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .dock__section-title {
@@ -513,16 +522,18 @@ body {
   border-color: transparent;
 }
 
-.actions--roll {
-  justify-content: center;
-}
-
-.btn--roll {
-  flex: 0 0 auto;
+/*
+ * The one turn button. Roll and End turn occupy this same rect — same size,
+ * same colour, same place in the row — so the label is the only thing that
+ * ever changes. It gets more width than Trade beside it because it is the
+ * turn's primary action in both of its states.
+ */
+.btn--turn {
+  flex: 1.35;
   flex-direction: row;
   min-height: 48px;
-  padding: 10px 30px;
-  border-radius: 999px;
+  padding: 10px 24px;
+  border-radius: 12px;
   background: #f3c969;
   color: #1a2330;
   border-color: transparent;
@@ -531,7 +542,7 @@ body {
   box-shadow: 0 4px 14px rgba(243, 201, 105, 0.25);
 }
 
-.btn--roll:hover:not(:disabled) {
+.btn--turn:hover:not(:disabled) {
   background: #f6d47e;
   box-shadow: 0 6px 18px rgba(243, 201, 105, 0.35);
 }
@@ -1632,10 +1643,174 @@ body {
   }
 }
 
+/* ---------- Phone dock: four fixed rows (< 840px) ----------
+ *
+ * The dock's height is a constant. Every row is always present and every
+ * control inside it stays mounted and dims in place, so the board above is
+ * measured once and never re-measured mid-turn — nothing shifts under a thumb
+ * that is already moving.
+ *
+ * Rows, top to bottom:
+ *   1. holdings  — resource fan (left) + development cards (right)
+ *   2. bank      — the 4:1 / harbour swap strip
+ *   3. build     — Road / Settlement / City / Buy dev
+ *   4. turn      — Trade, then the one Roll-or-End button on the right
+ */
+@media (max-width: 839px) {
+  .dock {
+    flex: none;
+    display: grid;
+    grid-template-rows: 74px auto auto auto;
+    gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .dock__row--holdings {
+    align-items: flex-end;
+    overflow: hidden;
+  }
+
+  /* The section heading costs a whole line of board height it does not earn —
+     five resource cards are self-evidently your hand. */
+  .dock__section-title {
+    display: none;
+  }
+
+  .dock__hand-section {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /*
+   * The fan. Cards overlap leftward with the leftmost on top, so every count
+   * badge — which sits on a card's bottom-right — stays uncovered. Zero-count
+   * resources keep their slot as a dashed card so positions never shift.
+   */
+  .dock__row--holdings .hand {
+    gap: 0;
+    padding-right: 4px;
+  }
+
+  .dock__row--holdings .stack {
+    flex: none;
+    margin-left: -14px;
+  }
+
+  .dock__row--holdings .stack:first-child {
+    margin-left: 0;
+  }
+
+  .dock__row--holdings .stack:nth-child(1) { z-index: 5; }
+  .dock__row--holdings .stack:nth-child(2) { z-index: 4; }
+  .dock__row--holdings .stack:nth-child(3) { z-index: 3; }
+  .dock__row--holdings .stack:nth-child(4) { z-index: 2; }
+  .dock__row--holdings .stack:nth-child(5) { z-index: 1; }
+
+  /* The icon already names the resource; the word underneath does not survive
+     the overlap and only costs height. Rates live in the bank row below. */
+  .dock__row--holdings .minicard__label,
+  .dock__row--holdings .card__rate {
+    display: none;
+  }
+
+  .dock__row--holdings .minicard {
+    width: 50px;
+    height: 62px;
+  }
+
+  .devbar {
+    flex: 0 0 auto;
+    max-width: 46%;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  /* Without this the flex row stretches it into a wide oval. */
+  .devbar .btn--icon-only {
+    flex: 0 0 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+
+  .devbar__cards {
+    flex: 0 1 auto;
+  }
+
+  .actions,
+  .actions__grid {
+    display: contents;
+  }
+
+  .actions__build-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .btn--build {
+    flex-direction: column;
+    gap: 1px;
+    min-height: 58px;
+    padding: 6px 2px;
+  }
+
+  .btn__build-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+  }
+
+  .btn__build-header svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .btn--build .btn__label {
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .btn--build .btn__cost {
+    font-size: 10px;
+  }
+
+  .btn__buydev-icon {
+    font-size: 20px;
+    line-height: 22px;
+  }
+
+  .actions__footer-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn--trade {
+    flex: 1;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .btn--turn {
+    min-height: 48px;
+    font-size: 16px;
+  }
+}
+
 /* ---------- Desktop Two-Column Rail (>= 840px) ---------- */
 @media (min-width: 840px) {
   .game-layout {
     flex-direction: row;
+  }
+
+  /* The rail is narrow: side by side, the hand and the dev cards would crush
+     each other. They stack until the rail gets its own redesign. */
+  .dock__row--holdings {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
   }
 
   .stage {
@@ -1730,16 +1905,14 @@ body {
     font-size: 15px;
   }
 
-  .btn--trade,
-  .btn--end-turn {
+  .btn--trade {
     min-height: 48px;
     font-size: 16px;
     font-weight: 700;
     flex: 1;
   }
 
-  .btn--roll {
-    width: 100%;
+  .btn--turn {
     min-height: 50px;
     font-size: 17px;
   }

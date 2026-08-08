@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mobile HUD redesign — three directions</title>
+<style>
+  :root{
+    --bg:#0d2438; --sea:#14405f; --panel:#10314a; --panel-2:#0b2438;
+    --line:rgba(255,255,255,.12); --text:#eaf1f7; --muted:#9db4c7;
+    --gold:#f3c969; --violet:#9a82db; --violet-2:#c3b2f0; --teal:#3fb8af; --teal-2:#7fe0d8;
+    --red:#e2483c; --blue:#3d7fd6; --orange:#ef8b34; --white:#f2ede4;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    padding:32px 20px 64px;
+  }
+  h1{font-size:22px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin:0 0 6px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 28px;max-width:78ch;line-height:1.55}
+  .sub code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px;font-size:12px}
+
+  .problem{
+    border:1px solid rgba(226,72,60,.4); background:rgba(226,72,60,.09);
+    border-radius:12px; padding:14px 16px; margin:0 0 30px; max-width:78ch;
+  }
+  .problem b{color:#f0938f}
+  .problem ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13px;line-height:1.7}
+
+  .rack{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:0 0 auto;width:300px}
+  .col h2{font-size:15px;margin:0 0 2px}
+  .col .tag{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--gold);margin-bottom:6px;display:block}
+  .col .blurb{font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 14px;min-height:72px}
+
+  /* ---- phone ---- */
+  .phone{
+    position:relative; width:300px; height:650px; border-radius:34px;
+    border:1px solid var(--line); overflow:hidden;
+    background:radial-gradient(circle at 50% 38%, #1b5177 0%, var(--sea) 55%, var(--bg) 100%);
+    box-shadow:0 18px 44px rgba(0,0,0,.5);
+  }
+  .board{position:absolute;inset:0;display:grid;place-items:center}
+  .board svg{width:100%;height:100%}
+
+  /* ---- shared HUD bits ---- */
+  .topbar{
+    position:absolute;top:0;left:0;right:0;z-index:5;
+    display:flex;align-items:center;gap:5px;padding:9px 10px;
+    background:linear-gradient(#0b2438e8,#0b243800);
+  }
+  .pchip{
+    display:flex;align-items:center;gap:5px;padding:5px 8px;border-radius:999px;
+    background:rgba(9,26,40,.7);border:1px solid transparent;font-size:11px;font-variant-numeric:tabular-nums;
+  }
+  .pchip .dot{width:9px;height:9px;border-radius:50%;background:var(--c)}
+  .pchip.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 24%,rgba(9,26,40,.8))}
+  .pchip .nm{font-weight:700}
+  .pchip .vp{color:var(--muted)}
+
+  .statuspill{
+    position:absolute;left:50%;transform:translateX(-50%);top:44px;z-index:5;
+    display:flex;align-items:center;gap:7px;
+    padding:5px 12px;border-radius:999px;font-size:11px;white-space:nowrap;
+    background:rgba(9,26,40,.85);border:1px solid var(--line);
+    backdrop-filter:blur(3px);
+  }
+  .statuspill .turn{background:var(--red);color:#10202c;font-weight:700;border-radius:999px;padding:2px 7px;font-size:10px}
+
+  /* resource chip */
+  .res{
+    position:relative;width:42px;height:42px;border-radius:11px;
+    display:flex;align-items:center;justify-content:center;font-size:21px;
+    background:#f2ead9;border:1px solid rgba(0,0,0,.4);
+    box-shadow:0 3px 8px rgba(0,0,0,.45);
+  }
+  .res .n{
+    position:absolute;right:-5px;bottom:-5px;min-width:19px;height:19px;padding:0 4px;
+    border-radius:999px;background:#23303c;color:#f4ead6;border:1.5px solid rgba(255,255,255,.3);
+    font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .res.zero{background:rgba(255,255,255,.07);border-style:dashed;border-color:rgba(255,255,255,.25);box-shadow:none;opacity:.45}
+  .res.zero .n{display:none}
+
+  /* dev chip */
+  .dev{
+    width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    font-size:19px;background:rgba(154,130,219,.2);border:1px solid rgba(154,130,219,.65);
+    box-shadow:0 3px 8px rgba(0,0,0,.4);position:relative;
+  }
+  .dev.empty{background:rgba(255,255,255,.05);border-style:dashed;border-color:rgba(255,255,255,.22);opacity:.45}
+  .dev .n{
+    position:absolute;right:-5px;bottom:-5px;min-width:19px;height:19px;padding:0 4px;border-radius:999px;
+    background:var(--violet);color:#160f28;font-size:11px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;border:1.5px solid rgba(255,255,255,.3);
+  }
+
+  .railcap{
+    font-size:8.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+    text-align:center;margin-bottom:5px;text-shadow:0 1px 3px #000;
+  }
+
+  /* bottom bar */
+  .dockbar{
+    position:absolute;left:0;right:0;bottom:0;z-index:6;
+    padding:9px 10px 15px;
+    background:linear-gradient(#0b243800,#0b2438f2 26%);
+    display:flex;flex-direction:column;gap:7px;
+  }
+  .buildrow{display:flex;gap:7px}
+  .bbtn{
+    flex:1;min-height:44px;border-radius:12px;border:1px solid var(--line);
+    background:rgba(255,255,255,.09);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:1px;
+  }
+  .bbtn .ic{font-size:17px;line-height:1}
+  .bbtn .lb{font-size:9.5px;font-weight:600}
+  .bbtn .ct{font-size:8.5px;letter-spacing:.5px;color:var(--muted)}
+  .bbtn.off{opacity:.4}
+  .mainrow{display:flex;gap:7px}
+  .mbtn{
+    flex:1;min-height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    gap:6px;font-weight:700;font-size:13.5px;border:1px solid var(--line);background:rgba(255,255,255,.09);
+  }
+  .mbtn.primary{background:var(--gold);color:#1a2330;border-color:transparent}
+  .mbtn.trade{background:rgba(63,184,175,.18);border-color:var(--teal);color:var(--teal-2)}
+
+  /* dice */
+  .dice{position:absolute;z-index:5;display:flex;gap:5px}
+  .die{width:27px;height:27px;border-radius:6px;background:#f4ead6;display:grid;
+       grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:4px;
+       box-shadow:0 3px 8px rgba(0,0,0,.45)}
+  .die i{width:4.5px;height:4.5px;border-radius:50%;margin:auto;background:#23303c;display:block}
+  .die i.o{background:transparent}
+
+  /* callouts */
+  .notes{margin-top:14px;font-size:11.5px;color:var(--muted);line-height:1.7}
+  .notes b{color:var(--text);font-weight:600}
+  .metric{display:inline-block;background:rgba(99,153,34,.18);color:#9ed36a;border-radius:5px;padding:1px 6px;font-weight:700;font-size:11px}
+
+  .legend{margin-top:40px;max-width:80ch;font-size:13px;color:var(--muted);line-height:1.7}
+  .legend h3{color:var(--text);font-size:15px;margin:26px 0 8px}
+  .legend table{border-collapse:collapse;width:100%;margin-top:10px;font-size:12.5px}
+  .legend th,.legend td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  .legend th{color:var(--text);font-weight:700}
+  .legend td:first-child{white-space:nowrap;color:var(--text)}
+  .legend code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+
+<h1>Mobile HUD — three directions</h1>
+<p class="sub">
+  Design exploration only, nothing implemented. All three put the board full-bleed behind a floating HUD,
+  and all three keep <b>fixed slots</b>: a control that is unavailable is dimmed in place, never unmounted,
+  so nothing reflows between turn states. Measurements are against a 390&times;844 phone.
+</p>
+
+<div class="problem">
+  <b>What we're fixing.</b> The desktop rail rules are currently applying on phones:
+  <ul>
+    <li>Board renders <b>108&times;105 px — 3.4% of the screen</b> (it was 30.7% before the desktop redesign).</li>
+    <li>Top chrome eats 109 px before the board starts; the stage gets 132 px.</li>
+    <li>Action buttons inherit the rail's column flex, so widths come out ragged: 148 / 88 / 129 / 82 / 61 / 82 px.</li>
+    <li>Everything is stacked in one scrolling column, so the board competes with the controls for the same axis.</li>
+  </ul>
+</div>
+
+<div class="rack">
+
+  <!-- ============ A ============ -->
+  <div class="col">
+    <span class="tag">Direction A</span>
+    <h2>Edge rails</h2>
+    <p class="blurb">
+      Resources hug the left edge, dev cards the right, actions along the bottom — the layout you described.
+      Board reclaims the whole screen behind them. Most literal, most information on screen at once.
+    </p>
+    <div class="phone">
+      <div class="board"></div>
+
+      <div class="topbar">
+        <span class="pchip on" style="--c:var(--red)"><span class="dot"></span><span class="nm">You</span><span class="vp">4/10</span></span>
+        <span class="pchip" style="--c:var(--blue)"><span class="dot"></span><span class="vp">3</span></span>
+        <span class="pchip" style="--c:var(--orange)"><span class="dot"></span><span class="vp">5</span></span>
+        <span class="pchip" style="--c:var(--white)"><span class="dot"></span><span class="vp">2</span></span>
+      </div>
+
+      <div class="statuspill"><span class="turn">Your turn</span> Rolled 9 — +2 grain</div>
+
+      <div style="position:absolute;left:8px;top:96px;z-index:5;display:flex;flex-direction:column;gap:9px">
+        <div class="railcap">Hand</div>
+        <div class="res">🧱<span class="n">1</span></div>
+        <div class="res zero">🌲</div>
+        <div class="res">🐑<span class="n">2</span></div>
+        <div class="res">🌾<span class="n">3</span></div>
+        <div class="res zero">⛰️</div>
+      </div>
+
+      <div style="position:absolute;right:8px;top:96px;z-index:5;display:flex;flex-direction:column;gap:9px">
+        <div class="railcap">Cards</div>
+        <div class="dev">⚔️</div>
+        <div class="dev">🛤️</div>
+        <div class="dev empty">＋</div>
+        <div class="dev empty">＋</div>
+        <div class="dev" style="background:rgba(255,255,255,.08);border-color:var(--line);font-size:15px">❓</div>
+      </div>
+
+      <div class="dice" style="right:62px;bottom:158px">
+        <div class="die"><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i></div>
+        <div class="die"><i></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i></div>
+      </div>
+
+      <div class="dockbar">
+        <div class="buildrow">
+          <div class="bbtn"><span class="ic">🛣️</span><span class="lb">Road</span><span class="ct">🧱🌲</span></div>
+          <div class="bbtn"><span class="ic">🏠</span><span class="lb">Settle</span><span class="ct">🧱🌲🐑🌾</span></div>
+          <div class="bbtn off"><span class="ic">🏙️</span><span class="lb">City</span><span class="ct">🌾🌾⛰️⛰️⛰️</span></div>
+          <div class="bbtn"><span class="ic">🃏</span><span class="lb">Buy</span><span class="ct">🐑🌾⛰️</span></div>
+        </div>
+        <div class="mainrow">
+          <div class="mbtn trade">Trade</div>
+          <div class="mbtn primary">End turn</div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      Board area <span class="metric">~58%</span> &middot; permanent HUD on 4 edges<br>
+      <b>+</b> every resource and card visible without a tap; matches your sketch exactly.<br>
+      <b>&minus;</b> rails overlap the board's left/right hexes; 4 occupied edges is the busiest option.
+    </div>
+  </div>
+
+  <!-- ============ B ============ -->
+  <div class="col">
+    <span class="tag">Direction B</span>
+    <h2>Left rail + thumb dock</h2>
+    <p class="blurb">
+      Resources stay pinned left. Dev cards collapse to a single right-edge deck chip that expands on tap.
+      Actions move into a bottom-right thumb cluster where a one-handed grip actually reaches.
+    </p>
+    <div class="phone">
+      <div class="board"></div>
+
+      <div class="topbar">
+        <span class="pchip on" style="--c:var(--red)"><span class="dot"></span><span class="nm">You</span><span class="vp">4/10</span></span>
+        <span class="pchip" style="--c:var(--blue)"><span class="dot"></span><span class="vp">3</span></span>
+        <span class="pchip" style="--c:var(--orange)"><span class="dot"></span><span class="vp">5</span></span>
+        <span class="pchip" style="--c:var(--white)"><span class="dot"></span><span class="vp">2</span></span>
+      </div>
+
+      <div class="statuspill"><span class="turn">Your turn</span> Rolled 9 — +2 grain</div>
+
+      <div style="position:absolute;left:8px;top:96px;z-index:5;display:flex;flex-direction:column;gap:9px">
+        <div class="railcap">Hand</div>
+        <div class="res">🧱<span class="n">1</span></div>
+        <div class="res zero">🌲</div>
+        <div class="res">🐑<span class="n">2</span></div>
+        <div class="res">🌾<span class="n">3</span></div>
+        <div class="res zero">⛰️</div>
+      </div>
+
+      <div style="position:absolute;right:9px;top:104px;z-index:5;display:flex;flex-direction:column;align-items:center;gap:5px">
+        <div style="position:relative;width:46px;height:58px">
+          <div style="position:absolute;inset:6px 0 0 6px;border-radius:10px;background:rgba(154,130,219,.14);border:1px solid rgba(154,130,219,.35)"></div>
+          <div style="position:absolute;inset:3px;border-radius:10px;background:rgba(154,130,219,.2);border:1px solid rgba(154,130,219,.5)"></div>
+          <div style="position:absolute;inset:0 6px 6px 0;border-radius:10px;background:rgba(154,130,219,.3);border:1px solid var(--violet);display:flex;align-items:center;justify-content:center;font-size:19px">🃏</div>
+          <div style="position:absolute;right:-6px;bottom:0;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--violet);color:#160f28;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border:1.5px solid rgba(255,255,255,.35)">2</div>
+        </div>
+        <div class="railcap" style="margin:0">Cards</div>
+      </div>
+
+      <div class="dice" style="left:72px;bottom:124px">
+        <div class="die"><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i></div>
+        <div class="die"><i></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i></div>
+      </div>
+
+      <div style="position:absolute;right:12px;bottom:16px;z-index:6;display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        <div style="display:flex;gap:8px">
+          <div class="bbtn" style="width:52px;flex:none"><span class="ic">🛣️</span><span class="lb">Road</span></div>
+          <div class="bbtn" style="width:52px;flex:none"><span class="ic">🏠</span><span class="lb">Settle</span></div>
+          <div class="bbtn off" style="width:52px;flex:none"><span class="ic">🏙️</span><span class="lb">City</span></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="mbtn trade" style="flex:none;width:70px;min-height:44px">Trade</div>
+          <div style="width:78px;height:78px;border-radius:50%;background:var(--gold);color:#1a2330;
+                      display:flex;flex-direction:column;align-items:center;justify-content:center;
+                      font-weight:700;font-size:12.5px;line-height:1.15;box-shadow:0 6px 20px rgba(243,201,105,.35);text-align:center">
+            <span style="font-size:20px">🏁</span>End turn
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      Board area <span class="metric">~68%</span> &middot; permanent HUD on 3 edges<br>
+      <b>+</b> primary action sits in the thumb arc; right edge almost entirely freed.<br>
+      <b>&minus;</b> dev cards cost one tap to see; the round button is a new shape for this UI.
+    </div>
+  </div>
+
+  <!-- ============ C ============ -->
+  <div class="col">
+    <span class="tag">Direction C</span>
+    <h2>Corner pods</h2>
+    <p class="blurb">
+      Maximum board. Hand, cards and build each collapse into one corner pod that opens a bottom sheet.
+      Only the turn action stays permanently on screen.
+    </p>
+    <div class="phone">
+      <div class="board"></div>
+
+      <div class="topbar">
+        <span class="pchip on" style="--c:var(--red)"><span class="dot"></span><span class="nm">You</span><span class="vp">4/10</span></span>
+        <span class="pchip" style="--c:var(--blue)"><span class="dot"></span><span class="vp">3</span></span>
+        <span class="pchip" style="--c:var(--orange)"><span class="dot"></span><span class="vp">5</span></span>
+        <span class="pchip" style="--c:var(--white)"><span class="dot"></span><span class="vp">2</span></span>
+      </div>
+
+      <div class="statuspill"><span class="turn">Your turn</span> Rolled 9 — +2 grain</div>
+
+      <div class="dice" style="right:14px;top:80px">
+        <div class="die"><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i></div>
+        <div class="die"><i></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i></div>
+      </div>
+
+      <div style="position:absolute;left:10px;bottom:14px;z-index:6;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex">
+          <div class="res" style="width:36px;height:36px;font-size:17px">🧱<span class="n">1</span></div>
+          <div class="res" style="width:36px;height:36px;font-size:17px;margin-left:-13px">🐑<span class="n">2</span></div>
+          <div class="res" style="width:36px;height:36px;font-size:17px;margin-left:-13px">🌾<span class="n">3</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;
+                    background:rgba(9,26,40,.85);border:1px solid var(--line);font-size:11.5px;font-weight:600">
+          🖐️ Hand <span style="color:var(--muted);font-variant-numeric:tabular-nums">6</span>
+        </div>
+      </div>
+
+      <div style="position:absolute;right:10px;top:136px;z-index:6;display:flex;align-items:center;gap:6px;
+                  padding:7px 12px;border-radius:999px;background:rgba(154,130,219,.24);
+                  border:1px solid var(--violet);font-size:11.5px;font-weight:700;color:var(--violet-2)">
+        🃏 Cards <span style="font-variant-numeric:tabular-nums">2</span>
+      </div>
+
+      <div style="position:absolute;right:10px;bottom:14px;z-index:6;display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+        <div style="display:flex;align-items:center;gap:6px;padding:9px 14px;border-radius:999px;
+                    background:rgba(9,26,40,.85);border:1px solid var(--line);font-size:12px;font-weight:600">
+          🔨 Build
+        </div>
+        <div class="mbtn primary" style="flex:none;width:118px;min-height:48px;border-radius:999px">End turn</div>
+      </div>
+    </div>
+    <div class="notes">
+      Board area <span class="metric">~82%</span> &middot; permanent HUD in 2 corners<br>
+      <b>+</b> board dominates; closest to looking at a physical table.<br>
+      <b>&minus;</b> hand contents hidden behind a tap — worst option for reading your own resources at a glance.
+    </div>
+  </div>
+
+</div>
+
+<div class="legend">
+  <h3>How they compare</h3>
+  <table>
+    <tr><th>&nbsp;</th><th>A — Edge rails</th><th>B — Left rail + thumb</th><th>C — Corner pods</th></tr>
+    <tr><td>Board area</td><td>~58%</td><td>~68%</td><td>~82%</td></tr>
+    <tr><td>Resources visible</td><td>Always, all 5</td><td>Always, all 5</td><td>Top 3 only, rest on tap</td></tr>
+    <tr><td>Dev cards visible</td><td>Always</td><td>Count only, tap to open</td><td>Count only, tap to open</td></tr>
+    <tr><td>Taps to build a road</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>One-handed reach</td><td>Bottom only</td><td>Good — thumb arc</td><td>Good</td></tr>
+    <tr><td>Edges occupied</td><td>4</td><td>3</td><td>2</td></tr>
+    <tr><td>Main risk</td><td>Rails overlap wide boards</td><td>New round-button shape</td><td>Hidden hand hurts planning</td></tr>
+  </table>
+
+  <h3>Recommendation</h3>
+  <p>
+    <b>B</b>, with A's dev rail available as an option. Resources are what you read constantly while deciding a
+    move, so they earn a permanent rail; dev cards get consulted a few times a game, so a count chip with a
+    tap-to-open tray is a fair trade for the whole right edge. The thumb cluster also puts <i>Roll</i> and
+    <i>End turn</i> — the two highest-frequency taps in the game — where a one-handed grip actually lands,
+    which none of the current layouts do.
+  </p>
+
+  <h3>Rules all three follow</h3>
+  <ul>
+    <li><b>Fixed slots.</b> A resource you hold none of stays as a dashed placeholder; an unaffordable build button dims in place. Nothing mounts or unmounts mid-turn, so nothing reflows.</li>
+    <li><b>Board never resizes.</b> The HUD floats above a full-bleed board instead of sharing a column with it, so board size is independent of what the HUD is showing.</li>
+    <li><b>Safe areas respected.</b> Bottom bars pad by <code>env(safe-area-inset-bottom)</code>, the top bar by <code>env(safe-area-inset-top)</code>.</li>
+    <li><b>Landscape degrades cleanly.</b> The bottom bar becomes a right rail and the board keeps the rest — the current layout cannot do this at all.</li>
+  </ul>
+
+  <h3>Open questions</h3>
+  <ul>
+    <li>Should the left rail show a resource you hold none of? Drawn here as a dashed slot to keep positions fixed; the alternative is a shorter rail that shifts as your hand changes.</li>
+    <li>Where do the dice belong? Placed differently in each mock on purpose — today they float in open water far from the roll button.</li>
+    <li>Public-hands mode shows four hands at once. Does it replace the left rail, or open as a sheet?</li>
+    <li>Does the board need pan/pinch once the HUD overlaps its edges, or is a slightly smaller board with clear margins better?</li>
+  </ul>
+</div>
+
+<script>
+// Shared board: 19 hexes in a real axial layout, so each direction shows what
+// it actually leaves visible.
+const FILL={l:'#2f6b3a',b:'#b0563a',w:'#8dbc5c',g:'#e2ba34',o:'#7a8794',d:'#dcc79a'};
+const ICON={l:'🌲',b:'🧱',w:'🐑',g:'🌾',o:'⛰️',d:'🏜️'};
+const LAYOUT=[
+  ['o',5],['l',2],['l',6],
+  ['b',3],['w',8],['g',10],['g',9],
+  ['l',12],['w',11],['o',4],['b',8],['g',10],
+  ['g',9],['b',4],['l',5],['d',null],
+  ['w',6],['w',3],['o',11]
+];
+const ROWS=[3,4,5,4,3];
+const R=34, SQ=Math.sqrt(3);
+function pip(n){return 6-Math.abs(7-n)}
+function build(el){
+  let i=0, out='';
+  const y0=-R*3; // five rows at 1.5R pitch, centred on the viewBox
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox','-150 -150 300 300');
+  ROWS.forEach((count,r)=>{
+    const y=y0+r*R*1.5;
+    const x0=-(count-1)*R*SQ/2;
+    for(let c=0;c<count;c++){
+      const [t,num]=LAYOUT[i++];
+      const x=x0+c*R*SQ;
+      const pts=[];
+      for(let k=0;k<6;k++){const a=Math.PI/180*(60*k-90);pts.push((x+R*Math.cos(a)).toFixed(1)+','+(y+R*Math.sin(a)).toFixed(1))}
+      out+='<polygon points="'+pts.join(' ')+'" fill="'+FILL[t]+'" stroke="#0f2a3d" stroke-width="1.6"/>';
+      out+='<text x="'+x+'" y="'+(y-6)+'" text-anchor="middle" font-size="15">'+ICON[t]+'</text>';
+      if(num){
+        const red=(num===6||num===8);
+        out+='<circle cx="'+x+'" cy="'+(y+11)+'" r="11.5" fill="#f4ead6" stroke="#0f2a3d" stroke-width="1.2"/>';
+        if(red)out+='<circle cx="'+x+'" cy="'+(y+11)+'" r="9.6" fill="none" stroke="#b3261e" stroke-width=".9"/>';
+        out+='<text x="'+x+'" y="'+(y+13)+'" text-anchor="middle" font-size="11" font-weight="700" fill="'+(red?'#b3261e':'#3b3226')+'">'+num+'</text>';
+        const p=pip(num);
+        for(let d=0;d<p;d++){
+          out+='<circle cx="'+(x+(d-(p-1)/2)*4.4)+'" cy="'+(y+18.5)+'" r="1.9" fill="'+(red?'#b3261e':'#3b3226')+'"/>';
+        }
+      }else{
+        out+='<circle cx="'+(x-11)+'" cy="'+(y-7)+'" r="9" fill="#1a1a1f" stroke="#f4ead6" stroke-width="1.6"/>';
+        out+='<text x="'+(x-11)+'" y="'+(y-3)+'" text-anchor="middle" font-size="10">🥷</text>';
+      }
+    }
+  });
+  svg.innerHTML=out;
+  el.appendChild(svg);
+}
+document.querySelectorAll('.board').forEach(build);
+</script>
+</body>
+</html>

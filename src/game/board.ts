@@ -204,16 +204,34 @@ export function createBoard(rand: () => number = Math.random): Board {
   const vertices = [...vertexByKey.values()]
   const edges = [...edgeByKey.values()]
   const ports = buildPorts(edges, edgeTileCount, rand)
-  const pad = HEX_SIZE * 1.3
-  const xs = vertices.map((v) => v.x)
-  const ys = vertices.map((v) => v.y)
-  const minX = Math.min(...xs) - pad
-  const minY = Math.min(...ys) - pad
+  /*
+   * The frame is measured from what is actually painted, not from a fixed pad
+   * around the hexes. A flat pad has to be generous enough for the harbour
+   * markers in the worst direction, which leaves dead sea on every other side —
+   * and because the board is an SVG with a viewBox, that dead space scales the
+   * number tokens down along with it. Ports are the outermost thing drawn: a
+   * circle of r=27 with a 3.5-wide stroke straddling its edge.
+   */
+  const portReach = 27 + 3.5 / 2
+  const xs = [
+    ...vertices.map((v) => v.x),
+    ...ports.flatMap((p) => [p.x - portReach, p.x + portReach]),
+  ]
+  const ys = [
+    ...vertices.map((v) => v.y),
+    ...ports.flatMap((p) => [p.y - portReach, p.y + portReach]),
+  ]
+  const contentW = Math.max(...xs) - Math.min(...xs)
+  const contentH = Math.max(...ys) - Math.min(...ys)
+  /** A deliberate frame, not padding: reads as sea rather than as waste. */
+  const MARGIN = 0.03
+  const minX = Math.min(...xs) - contentW * MARGIN
+  const minY = Math.min(...ys) - contentH * MARGIN
   const bounds = {
     minX,
     minY,
-    width: Math.max(...xs) + pad - minX,
-    height: Math.max(...ys) + pad - minY,
+    width: contentW * (1 + MARGIN * 2),
+    height: contentH * (1 + MARGIN * 2),
   }
 
   return { tiles, vertices, edges, ports, tileVertices, vertexTiles, bounds }
