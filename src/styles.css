@@ -851,48 +851,6 @@ body {
   background: rgba(127, 200, 232, 0.16);
 }
 
-/* ---------- stepper ---------- */
-
-.stepper {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.stepper__btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text);
-  font: inherit;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease;
-}
-
-.stepper__btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.stepper__btn:active:not(:disabled) {
-  transform: scale(0.9);
-}
-
-.stepper__btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.stepper__n {
-  min-width: 16px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  font-size: 14px;
-}
 
 /* ---------- modals & dialogs ---------- */
 
@@ -972,14 +930,14 @@ body {
  * One grid for all four rows, so brick sits under brick the whole way down.
  * The eyebrows span the full width and act as the row separators.
  */
-.trade4 {
+.pickgrid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
   margin: 12px 0;
 }
 
-.trade4__eyebrow {
+.pickgrid__eyebrow {
   grid-column: 1 / -1;
   margin-top: 8px;
   font-size: 11px;
@@ -990,11 +948,11 @@ body {
   text-align: left;
 }
 
-.trade4__eyebrow:first-child {
+.pickgrid__eyebrow:first-child {
   margin-top: 0;
 }
 
-.trade4__eyebrow--want {
+.pickgrid__eyebrow--want {
   color: #7fe0d8;
 }
 
@@ -1017,12 +975,12 @@ body {
   color: #7fe0d8;
 }
 
-.trade4__eyebrow--give {
+.pickgrid__eyebrow--give {
   color: #e09f67;
 }
 
-.trade4__pick,
-.trade4__cell {
+.pickgrid__pick,
+.pickgrid__cell {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1039,55 +997,61 @@ body {
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
-.trade4__pick:hover:not(:disabled) {
+.pickgrid__pick:hover:not(:disabled) {
   background: rgba(243, 201, 105, 0.2);
   border-color: #f3c969;
 }
 
-.trade4__pick:active:not(:disabled),
-.trade4__cell:active:not(:disabled) {
+.pickgrid__pick:active:not(:disabled),
+.pickgrid__cell:active:not(:disabled) {
   transform: scale(0.96);
 }
 
-.trade4__pick:disabled,
-.trade4__cell:disabled {
+.pickgrid__pick:disabled,
+.pickgrid__cell:disabled {
   opacity: 0.35;
   cursor: default;
 }
 
 /* The staged rows read as a tally, so an empty column stays a placeholder
    rather than disappearing and shifting the ones beside it. */
-.trade4__cell {
+.pickgrid__cell {
   border-style: dashed;
   background: transparent;
 }
 
-.trade4__cell--on {
+.pickgrid__cell--on {
   border-style: solid;
 }
 
-.trade4__cell--want.trade4__cell--on {
+.pickgrid__cell--want.pickgrid__cell--on {
   border-color: #7fe0d8;
   background: rgba(127, 224, 216, 0.14);
 }
 
-.trade4__cell--give.trade4__cell--on {
+.pickgrid__cell--give.pickgrid__cell--on {
   border-color: #e09f67;
   background: rgba(224, 159, 103, 0.14);
 }
 
-.trade4__icon {
+.pickgrid__icon {
   font-size: 20px;
   line-height: 1;
 }
 
-.trade4__count {
+.pickgrid__count {
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.trade4__held {
+.btn--discard {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 4px;
+}
+
+.pickgrid__held {
   font-size: 10px;
   color: var(--muted);
 }
@@ -1183,12 +1147,6 @@ body {
   font-weight: 700;
 }
 
-.discard__grid {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px 12px;
-  align-items: center;
-}
 
 .offer__res {
   display: flex;
@@ -1773,11 +1731,11 @@ body {
   }
 
   @media (max-width: 480px) {
-    .trade4__pick,
-    .trade4__cell {
+    .pickgrid__pick,
+    .pickgrid__cell {
       min-height: 46px;
     }
-    .trade4__icon {
+    .pickgrid__icon {
       font-size: 18px;
     }
   }

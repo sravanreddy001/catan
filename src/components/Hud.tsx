@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import type { GameSettings } from '../game/engine'
 import type { AIPreset } from '../game/ai'
 import type { Resource } from '../game/board'
@@ -757,23 +757,54 @@ export function DiscardPicker({
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="discard-title">
       <div className="modal__panel">
         <h2 id="discard-title" className="modal__title">Rolled a 7 — discard {owed}</h2>
-        <p className="lobby__hint">{player.name}, you're holding more than 7 cards.</p>
-        <div className="discard__grid">
-          {RESOURCES.map((r) => (
-            <Fragment key={r}>
-              <span className="offer__res">
-                {RESOURCE_ICON[r]}
-                <small>{player.hand[r]}</small>
-              </span>
-              <Stepper
-                value={picks[r] ?? 0}
-                max={player.hand[r]}
-                onChange={(n) => setPicks({ ...picks, [r]: n })}
-              />
-            </Fragment>
-          ))}
+        <p className="lobby__hint">{player.name}, you&apos;re holding more than 7 cards.</p>
+
+        {/*
+          * Same grid as the trade composer, two rows: what is going back to
+          * the bank on top, what is left in your hand underneath, a resource
+          * holding one column across both. Tap down to add, tap up to undo.
+          */}
+        <div className="pickgrid">
+          <span className="pickgrid__eyebrow pickgrid__eyebrow--give">
+            Discarding ({total}/{owed})
+          </span>
+          {RESOURCES.map((r) => {
+            const n = picks[r] ?? 0
+            return (
+              <button
+                key={`discard-${r}`}
+                className={`pickgrid__cell pickgrid__cell--give${n > 0 ? ' pickgrid__cell--on' : ''}`}
+                disabled={n === 0}
+                aria-label={`Discarding ${n} ${r} — tap to keep one`}
+                onClick={() => setPicks((p) => ({ ...p, [r]: Math.max(0, (p[r] ?? 0) - 1) }))}
+              >
+                <span className="pickgrid__icon">{RESOURCE_ICON[r]}</span>
+                <span className="pickgrid__count">{n}</span>
+              </button>
+            )
+          })}
+
+          <span className="pickgrid__eyebrow">Your hand — tap to discard</span>
+          {RESOURCES.map((r) => {
+            const held = player.hand[r] ?? 0
+            const n = picks[r] ?? 0
+            const left = held - n
+            return (
+              <button
+                key={`keep-${r}`}
+                className="pickgrid__pick"
+                disabled={left === 0 || total >= owed}
+                aria-label={`Discard one ${r} — ${left} left in hand`}
+                onClick={() => setPicks((p) => ({ ...p, [r]: Math.min(held, (p[r] ?? 0) + 1) }))}
+              >
+                <span className="pickgrid__icon">{RESOURCE_ICON[r]}</span>
+                <span className="pickgrid__count">{left}</span>
+              </button>
+            )
+          })}
         </div>
-        <button className="btn btn--primary" disabled={total !== owed} onClick={() => onDiscard(picks)}>
+
+        <button className="btn btn--primary btn--discard" disabled={total !== owed} onClick={() => onDiscard(picks)}>
           Discard {total}/{owed}
         </button>
       </div>
@@ -788,32 +819,6 @@ function bundleText(b: Bundle): string {
   return parts.length ? parts.join(' ') : '—'
 }
 
-function Stepper({
-  value,
-  max,
-  onChange,
-}: {
-  value: number
-  max?: number
-  onChange: (n: number) => void
-}) {
-  return (
-    <span className="stepper">
-      <button className="stepper__btn" disabled={value === 0} onClick={() => onChange(value - 1)} aria-label="Decrease">
-        −
-      </button>
-      <span className="stepper__n">{value}</span>
-      <button
-        className="stepper__btn"
-        disabled={max !== undefined && value >= max}
-        onClick={() => onChange(value + 1)}
-        aria-label="Increase"
-      >
-        +
-      </button>
-    </span>
-  )
-}
 
 function totalCount(b: Bundle): number {
   return Object.values(b).reduce<number>((sum, n) => sum + (n ?? 0), 0)
@@ -841,8 +846,8 @@ interface OfferComposerProps {
 }
 
 /**
- * Two-column player-to-player trade composer:
- * Clear side-by-side layout ("You give" ⇄ "You get") with direct count steppers.
+ * Player-to-player trade composer: four rows over five fixed resource
+ * columns — want picks, staged want, staged give, give picks.
  */
 export function OfferComposer({
   player,
@@ -901,67 +906,67 @@ export function OfferComposer({
           * the same column in all four rows, so a trade reads as two vertical
           * pairs instead of two lists that have to be matched up by icon.
           */}
-        <div className="trade4">
-          <span className="trade4__eyebrow trade4__eyebrow--want">Pick what you want</span>
+        <div className="pickgrid">
+          <span className="pickgrid__eyebrow pickgrid__eyebrow--want">Pick what you want</span>
           {RESOURCES.map((r) => (
             <button
               key={`want-pick-${r}`}
-              className="trade4__pick"
+              className="pickgrid__pick"
               aria-label={`Ask for one more ${r}`}
               onClick={() => setWant((w) => ({ ...w, [r]: (w[r] ?? 0) + 1 }))}
             >
-              <span className="trade4__icon">{RESOURCE_ICON[r]}</span>
+              <span className="pickgrid__icon">{RESOURCE_ICON[r]}</span>
             </button>
           ))}
 
-          <span className="trade4__eyebrow">You get ({totalCount(want)})</span>
+          <span className="pickgrid__eyebrow">You get ({totalCount(want)})</span>
           {RESOURCES.map((r) => {
             const n = want[r] ?? 0
             return (
               <button
                 key={`want-cell-${r}`}
-                className={`trade4__cell trade4__cell--want${n > 0 ? ' trade4__cell--on' : ''}`}
+                className={`pickgrid__cell pickgrid__cell--want${n > 0 ? ' pickgrid__cell--on' : ''}`}
                 disabled={n === 0}
                 aria-label={`Asking for ${n} ${r} — tap to remove one`}
                 onClick={() => setWant((w) => ({ ...w, [r]: Math.max(0, (w[r] ?? 0) - 1) }))}
               >
-                <span className="trade4__icon">{RESOURCE_ICON[r]}</span>
-                <span className="trade4__count">{n}</span>
+                <span className="pickgrid__icon">{RESOURCE_ICON[r]}</span>
+                <span className="pickgrid__count">{n}</span>
               </button>
             )
           })}
 
-          <span className="trade4__eyebrow">You give ({totalCount(give)})</span>
+          <span className="pickgrid__eyebrow">You give ({totalCount(give)})</span>
           {RESOURCES.map((r) => {
             const n = give[r] ?? 0
             return (
               <button
                 key={`give-cell-${r}`}
-                className={`trade4__cell trade4__cell--give${n > 0 ? ' trade4__cell--on' : ''}`}
+                className={`pickgrid__cell pickgrid__cell--give${n > 0 ? ' pickgrid__cell--on' : ''}`}
                 disabled={n === 0}
                 aria-label={`Offering ${n} ${r} — tap to remove one`}
                 onClick={() => setGive((g) => ({ ...g, [r]: Math.max(0, (g[r] ?? 0) - 1) }))}
               >
-                <span className="trade4__icon">{RESOURCE_ICON[r]}</span>
-                <span className="trade4__count">{n}</span>
+                <span className="pickgrid__icon">{RESOURCE_ICON[r]}</span>
+                <span className="pickgrid__count">{n}</span>
               </button>
             )
           })}
 
-          <span className="trade4__eyebrow trade4__eyebrow--give">Pick what you give</span>
+          <span className="pickgrid__eyebrow pickgrid__eyebrow--give">Pick what you give</span>
           {RESOURCES.map((r) => {
             const held = player.hand[r] ?? 0
             const n = give[r] ?? 0
             return (
               <button
                 key={`give-pick-${r}`}
-                className="trade4__pick"
+                className="pickgrid__pick"
                 disabled={n >= held}
                 aria-label={`Offer one more ${r} — you hold ${held}`}
                 onClick={() => setGive((g) => ({ ...g, [r]: Math.min(held, (g[r] ?? 0) + 1) }))}
               >
-                <span className="trade4__icon">{RESOURCE_ICON[r]}</span>
-                <span className="trade4__held">{held}</span>
+                <span className="pickgrid__icon">{RESOURCE_ICON[r]}</span>
+                <span className="pickgrid__held">{held}</span>
               </button>
             )
           })}
