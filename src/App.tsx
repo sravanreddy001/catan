@@ -674,16 +674,24 @@ export default function App() {
               />
             </div>
 
+            {/*
+              These read from your seat, not from whoever is acting. Rendering
+              them against `current` meant that during a bot's 700ms tick the
+              rail re-rendered against the bot's hand — which is the flicker,
+              and also leaks what the bot is holding through the affordability
+              states. Offline hot-seat is unaffected: `viewed` is `current`
+              when there is no assigned seat.
+            */}
             <TradeBar
-              player={current}
+              player={viewed}
               rates={rates}
               disabled={!myTurn || state.phase !== 'play' || !state.hasRolled || state.mode === 'robber'}
               onTrade={(give, get) => dispatch({ type: 'bankTrade', give, get })}
             />
 
             <ActionBar
-              player={current}
-              canBuyDev={!devBusy && canAffordDev(current) && state.deck.length > 0}
+              player={viewed}
+              canBuyDev={!devBusy && canAffordDev(viewed) && state.deck.length > 0}
               onBuyDev={() => dispatch({ type: 'buyDev' })}
               mode={state.mode}
               hasRolled={state.hasRolled}
