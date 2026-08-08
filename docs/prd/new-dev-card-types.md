@@ -8,7 +8,25 @@ date: 2026-08-07
 
 See [settings-overview.md](./settings-overview.md) for shared codebase context, sequencing (this item should land before [dev-card-drafting](./dev-card-drafting.md)), and its cross-cutting HUD-indicator/preset requirement.
 
-**Balance status, confirmed by user (2026-08-07): hold as-is.** The deck-ratio question stays open pending a dedicated design/balance pass — this document scopes the *mechanism* (what new card kinds exist, how they resolve, what engine surfaces they touch) deliberately without locking a strawman ratio. That balance pass needs to happen before this PRD goes to Architect feasibility; feasibility is being asked to evaluate buildability of the mechanism, not to bless a set of numbers that haven't been decided yet.
+**Balance status — RESOLVED by the user (2026-08-07), superseding the earlier "hold as-is" note.** The deck ratio is now locked (below), so this PRD is unblocked for Architect feasibility.
+
+**Locked deck composition (25 cards, unchanged total):**
+
+| Kind | Count |
+|---|---|
+| knight | 9 |
+| victory | 4 |
+| roadBuilding | 2 |
+| monopoly | 2 |
+| plenty | 2 |
+| merchant | 2 |
+| trailblazer | 2 |
+| diplomat | 1 |
+| merit | 1 |
+
+Rationale: knights drop 14 → 9, so largest army (3+ knights) stays reachable but becomes a real race; new kinds are ~24% of the deck (6/25) — enough texture without reworking the game's feel; Merit stays rare (1) so half-point VP totals are an occasional curiosity rather than a constant "why is my score .5".
+
+This composition applies **only when the new-dev-card-types setting is enabled**; with the setting off, the deck stays at today's 14/5/2/2/2. **With Santa mode also on**, Diplomat is dropped (it blocks a robber that Santa mode removes) and its slot becomes a 10th knight: 10/4/2/2/2/2/2/0/1.
 
 ## Problem
 
@@ -49,7 +67,8 @@ Players who've exhausted the standard dev-card variety want more texture in the 
 - Given the new deck composition (once numbers are set), when a player buys a dev card, then it can be any of the enabled kinds, in the configured ratio.
 - Given Merchant is played, when the player selects give/get resources up to 3 units, then the trade executes at 1:1 exactly once, and the card is consumed.
 - Given Trailblazer is played, when the player selects a valid road edge, then one road is added to their network (not two), and the card is consumed.
-- Given Diplomat is held, when any player (bot or human) attempts to target its holder with the robber, then that placement is rejected/redirected and the Diplomat shield is consumed.
+- Given Diplomat is held (resolved 2026-08-07, replaces the earlier "placement is rejected/redirected" wording), when the robber is placed on a tile touching its holder and the holder would be stolen from, then the steal is cancelled and the Diplomat shield is consumed. The placement itself is always legal — the rule fires at resolution, so no bot behaviour reveals who holds a shield.
+- Given Santa mode is on (which removes the robber entirely), when the deck is built, then Diplomat is excluded and its slot becomes a 10th knight — no dead cards.
 - Given Merit is played, when it resolves, then the holder's fixed-point VP total increases by 0.5 and they receive 1 resource of their choice from the bank (or 0 if the bank is dry on every type), and the win-check correctly reads two held/played Merits as a full VP.
 - Given a bot holds any of these cards, when it's the bot's turn to act, then it makes a real decision for cards that need one (Merchant's resource choice, Merit's resource choice), not a random or no-op play.
 - Given new dev card types are enabled, when any player views the Hud, then the top-left settings chip reflects that (see settings-overview.md's cross-cutting requirement).
@@ -60,8 +79,34 @@ No metric yet — this is a design/balance item that needs a playtest pass befor
 
 ## Open questions (need user decision before feasibility)
 
-1. ~~Does the user want to lock a strawman deck ratio now... or hold this whole PRD until a dedicated brainstorming pass on card balance happens first?~~ **Resolved 2026-08-07: hold.** No strawman ratio is being locked in this document; a dedicated design/balance pass happens before this item goes to Architect feasibility. This question stays listed only as a pointer to that pending pass, not as an open decision this document is asking the user to make right now.
+1. ~~Does the user want to lock a strawman deck ratio now, or hold until a dedicated balance pass?~~ **Resolved 2026-08-07 (second pass): ratio locked** at 9/4/2/2/2/2/2/1/1 — see the locked composition table at the top of this document. The earlier "hold" answer is superseded; nothing here blocks feasibility any more.
 2. ~~Should Saboteur have any restriction to manage kingmaker risk?~~ — **moot, resolved 2026-08-07: Saboteur cut entirely.** No targeting-restriction design needed.
-3. Merit's fixed-point VP representation: does the Hud display half-points anywhere (e.g. "7.5 / 10"), or only round numbers with the 0.5 invisible until it combines into a full point? Not addressed by the card's approval — a UI/UX-mock-time question, not a blocker for feasibility.
+3. ~~Merit's fixed-point VP representation: does the Hud display half-points?~~ **Resolved 2026-08-07: show halves.** The Hud renders the true fractional total (e.g. "7.5 / 10") rather than hiding the 0.5 until it pairs into a full point — a played Merit must not look like a no-op. Win check still requires reaching the full target (a 9.5 does not win at a target of 10).
 
 ## Feasibility (Architect fills this in)
+
+verdict: feasible-with-changes
+
+latency: No user-facing latency risk. This is a local, in-browser reducer app — the relevant metric is per-action reducer time, currently sub-millisecond. The additions are O(players) or O(hand) at worst (`victoryPoints` already runs per player on every action via `reduce()`'s champion check; adding half-point arithmetic changes no complexity class). Online play sends no new messages: `HostSession.broadcastState()` already ships the whole `GameState`, so `settings.newDevCards`, the Diplomat shield field, and the Merchant credit reach guests for free. State payload grows by a few bytes per broadcast.
+
+schema: No database exists in this project — "schema" here means the `GameState`/`Player` shape, and it does change:
+- `DevKind` union gains `'merchant' | 'trailblazer' | 'diplomat' | 'merit'`, plus matching `DEV_LABEL`/`DEV_ICON` entries (players.ts).
+- `GameSettings` gains `newDevCards: boolean` (default false); `createDevDeck()` takes that flag and returns 14/5/2/2/2 when off, the locked 9/4/2/2/2/2/2/1/1 when on.
+- `Player` gains a Diplomat shield flag (`shielded: boolean`), consumed on the first robber placement targeting that player.
+- `GameState.picking` union gains `'meritBonus'` (Merit's free resource — mirrors the existing `'santaBonus'` flow exactly).
+- `GameState` gains a Merchant credit, e.g. `merchant: { give: Resource | null; left: number } | null`, so the existing `bankTrade` action can resolve at rate 1 for up to 3 units of one chosen resource in a single transaction (`ratesFor()` override) instead of needing a whole new action + UI.
+- **VP moves to half-point units.** `victoryPoints()` and `scoreBreakdown()` should return half-points internally (integers, `×2`) and the win check compares against `vpTarget * 2`; display divides by 2. Keeping the champion check inside `reduce()`'s single computed site is a hard requirement (settings-overview sequencing note) — don't fan the comparison out.
+
+risks:
+1. **VP representation is the one genuinely invasive change.** Every reader of `victoryPoints()`/`scoreBreakdown()` — Hud, the end-game score breakdown, AI evaluation in `ai.ts`, the win check — must be updated together, or scores silently double. Mitigation: keep the internal unit change behind named helpers (`victoryPointsHalves()` + a `formatVP()` for display) rather than letting raw halves leak into components; add a unit test pinning a Merit-holding player's total and the win threshold.
+2. **Diplomat's shield is hidden information that the AI can see.** `ai.ts`'s `robberTarget()` runs on the full state, so a bot could "know" about a shield a human player couldn't. Decide explicitly: either bots respect the shield (skip the target — the PRD's acceptance criterion, but that leaks the shield's existence through bot behavior) or bots ignore it and waste the placement (preserves the bluffing layer the PRD says it wants). Recommend bots ignore it, and note the acceptance criterion needs rewording — this is the required scope change.
+3. **Santa mode interaction.** With `santaMode` on there is no robber placement at all, so Diplomat is a dead card. **Resolved 2026-08-07: exclude Diplomat when Santa mode is on**, its slot becoming a 10th knight.
+
+Both of the above are now decided (see the acceptance criteria) — the verdict stays `feasible-with-changes` only because those changes are baked into the criteria rather than the original text.
+
+notes (required scope changes):
+- Acceptance criterion 4 currently says bots must respect the shield. Per risk 2, that conflicts with the "bluffing/information layer" the dynamics section wants. Pick one; recommended wording: "when the robber is placed on a shielded player, the steal is cancelled and the shield is consumed" — applies uniformly to humans and bots, no hidden-info leak, no AI change needed at all.
+- Merit's half-point VP display is settled (show "7.5 / 10"); confirm at UX-mock time that opponents' half-points are also visible in `PlayerStrip`, since a hidden Merit is hidden information but a *played* Merit is public.
+- Deck composition applies only when `settings.newDevCards` is true — with it off, nothing about today's deck, VP math display, or robber flow changes.
+
+date: 2026-08-07

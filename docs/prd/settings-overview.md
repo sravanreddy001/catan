@@ -73,7 +73,7 @@ The 4 open questions from the original scoping pass have been answered by the us
 
 1. **Combinable vs. curated settings** → both; see the cross-cutting requirement above.
 2. **Variable board size Phase A/B** → Phase A only (mini/standard board, 3-4 players) is this round's committed scope; Phase B (5-8 players) is explicitly deferred to a separate future PRD. See variable-board-size.md.
-3. **Dev card balance** → held as-is; new-dev-card-types.md's deck-ratio question stays open pending a dedicated balance/design pass, not resolved here.
+3. **Dev card balance** → **superseded 2026-08-07 (later pass): resolved, no longer held.** new-dev-card-types.md now locks a 25-card composition of 9 knight / 4 victory / 2 roadBuilding / 2 monopoly / 2 plenty / 2 merchant / 2 trailblazer / 1 diplomat / 1 merit, applied only when that setting is enabled. Merit's half-point display question is resolved too: the Hud shows true fractional totals ("7.5 / 10"); the win check still requires the full target.
 4. **Speed mode double-roll** → full discard-over-7 + robber rule applies on both rolls each turn, no dampening; the added chaos is accepted as intentional. See speed-mode.md.
 
 Two new, non-blocking documented defaults were added in that pass (HUD chip content, preset bundle contents — both above); both should be nailed down by or during each item's UX mock, neither blocks Architect feasibility.
