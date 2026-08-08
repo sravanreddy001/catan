@@ -108,31 +108,35 @@ export default function Lobby({
         )}
 
         {screen === 'offline' && (
-          <>
+          <div className="lobby__screen">
             <h2 id="lobby-dialog-title" className="modal__title">How many opponents?</h2>
             <div className="lobby__counts">
               {[1, 2, 3].map((n) => (
                 <button
                   key={n}
-                  className="lobby__count"
+                  className={`lobby__count-card${opponents === n ? ' lobby__count-card--on' : ''}`}
                   onClick={() => {
                     setOpponents(n)
                     setScreen('offline-color')
                   }}
                 >
-                  {n}
+                  <span className="lobby__count-num">{n}</span>
+                  <span className="lobby__count-sub">{n === 1 ? '1 Bot' : `${n} Bots`}</span>
+                  <span className="lobby__count-badge">{n + 1} players</span>
                 </button>
               ))}
             </div>
             <p className="lobby__hint">Not counting you. All opponents are AI.</p>
-            <button className="btn" onClick={() => setScreen('mode')}>
-              Back
-            </button>
-          </>
+            <div className="lobby__actions">
+              <button className="btn" onClick={() => setScreen('mode')}>
+                Back
+              </button>
+            </div>
+          </div>
         )}
 
         {screen === 'offline-color' && (
-          <>
+          <div className="lobby__screen">
             <h2 id="lobby-dialog-title" className="modal__title">Pick your color</h2>
             <ColorPicker value={color} onPick={setColor} />
             <p className="lobby__hint">Opponents take the remaining colors.</p>
@@ -216,27 +220,29 @@ export default function Lobby({
               )}
             </div>
 
-            <button
-              className="btn btn--primary"
-              onClick={() => {
-                const newPresets: Record<number, AIPreset> = {}
-                for (let i = 1; i <= opponents; i++) {
-                  newPresets[i] = null
-                }
-                setBotPresets(newPresets)
-                setScreen('offline-presets')
-              }}
-            >
-              Next: AI personalities
-            </button>
-            <button className="btn" onClick={() => setScreen('offline')}>
-              Back
-            </button>
-          </>
+            <div className="lobby__actions">
+              <button
+                className="btn btn--primary"
+                onClick={() => {
+                  const newPresets: Record<number, AIPreset> = {}
+                  for (let i = 1; i <= opponents; i++) {
+                    newPresets[i] = null
+                  }
+                  setBotPresets(newPresets)
+                  setScreen('offline-presets')
+                }}
+              >
+                Next: AI personalities
+              </button>
+              <button className="btn" onClick={() => setScreen('offline')}>
+                Back
+              </button>
+            </div>
+          </div>
         )}
 
         {screen === 'offline-presets' && (
-          <>
+          <div className="lobby__screen">
             <h2 id="lobby-dialog-title" className="modal__title">AI personalities</h2>
             <p className="lobby__hint">Customize each bot's playstyle, or keep defaults.</p>
 
@@ -268,27 +274,29 @@ export default function Lobby({
               })}
             </div>
 
-            <button
-              className="btn btn--primary"
-              onClick={() =>
-                onOffline(
-                  opponents,
-                  color,
-                  { publicHands, vpTarget, bankPreset, santaMode, speedMode, newDevCards },
-                  botPresets,
-                )
-              }
-            >
-              Start Game
-            </button>
-            <button className="btn" onClick={() => setScreen('offline-color')}>
-              Back
-            </button>
-          </>
+            <div className="lobby__actions">
+              <button
+                className="btn btn--primary"
+                onClick={() =>
+                  onOffline(
+                    opponents,
+                    color,
+                    { publicHands, vpTarget, bankPreset, santaMode, speedMode, newDevCards },
+                    botPresets,
+                  )
+                }
+              >
+                Start Game
+              </button>
+              <button className="btn" onClick={() => setScreen('offline-color')}>
+                Back
+              </button>
+            </div>
+          </div>
         )}
 
         {screen === 'join' && (
-          <>
+          <div className="lobby__screen">
             <h2 id="lobby-dialog-title" className="modal__title">Join room {code}</h2>
             <input
               className="field"
@@ -299,21 +307,23 @@ export default function Lobby({
               onChange={(e) => setName(e.target.value)}
             />
             <ColorPicker value={color} onPick={setColor} />
-            <button
-              className="btn btn--primary"
-              disabled={!name.trim() || code.trim().length < 4}
-              onClick={() => onJoin(code.trim(), name.trim(), color)}
-            >
-              Join game
-            </button>
-            <button className="btn" onClick={() => setScreen('mode')}>
-              Create a new game instead
-            </button>
-          </>
+            <div className="lobby__actions">
+              <button
+                className="btn btn--primary"
+                disabled={!name.trim() || code.trim().length < 4}
+                onClick={() => onJoin(code.trim(), name.trim(), color)}
+              >
+                Join game
+              </button>
+              <button className="btn" onClick={() => setScreen('mode')}>
+                Create a new game instead
+              </button>
+            </div>
+          </div>
         )}
 
         {screen === 'online' && (
-          <>
+          <div className="lobby__screen">
             <h2 id="lobby-dialog-title" className="modal__title">Play online</h2>
             <input
               className="field"
@@ -338,17 +348,19 @@ export default function Lobby({
               maxLength={4}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
             />
-            <button
-              className="btn"
-              disabled={!name.trim() || code.trim().length < 4}
-              onClick={() => onJoin(code.trim(), name.trim(), color)}
-            >
-              Join game
-            </button>
-            <button className="btn" onClick={() => setScreen('mode')}>
-              Back
-            </button>
-          </>
+            <div className="lobby__actions">
+              <button
+                className="btn"
+                disabled={!name.trim() || code.trim().length < 4}
+                onClick={() => onJoin(code.trim(), name.trim(), color)}
+              >
+                Join game
+              </button>
+              <button className="btn" onClick={() => setScreen('mode')}>
+                Back
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
