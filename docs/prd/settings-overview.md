@@ -12,6 +12,10 @@ Individual PRDs (committed this round):
 7. [AI personality presets](./ai-personality-presets.md)
 8. [Santa mode](./santa-mode.md)
 
+Drafted 2026-08-08, not committed: [Endless mode & fog of war](./endless-fog-of-war.md) — picked up after VP target 15 was dropped, since the wish for a long game belongs to a mode rather than a bigger number. Four open questions block its feasibility pass.
+
+Note (2026-08-08): variable board size is no longer fully dropped. Its Phase A ring generator and Phase B 5-8 player support both shipped — the generator was the prerequisite for seating more than four players, and fog of war will reuse it for edge expansion.
+
 Dropped: [Variable board size](./variable-board-size.md) — standard board stays fixed at 19 hexes; the "start small" idea folds into fog-of-war (parked, tweak item) instead. Kept as reference only, see its status note.
 
 ## Cross-cutting requirement: combinable settings + presets + in-game HUD indicator (applies to every item above)
