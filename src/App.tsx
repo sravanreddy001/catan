@@ -16,6 +16,7 @@ import {
   OfferResponse,
   PendingOffer,
   PlayerStrip,
+  DraftPicker,
   ResourcePicker,
   SettingsChip,
   TradeBar,
@@ -425,6 +426,7 @@ export default function App() {
     state.mode === 'robber' ||
     state.freeRoads > 0 ||
     state.picking !== null ||
+    state.draft !== null ||
     state.merchant !== null
 
   function roll() {
@@ -552,6 +554,15 @@ export default function App() {
           player={state.players[seat as number]}
           owed={myDiscardOwed}
           onDiscard={(cards) => dispatch({ type: 'discard', playerId: seat as PlayerId, cards })}
+        />
+      )}
+
+      {/* Bots draft on their own tick; only the buying human sees this. */}
+      {myTurn && state.draft && !(currentId in botPresets) && (
+        <DraftPicker
+          options={state.draft}
+          deckCount={state.deck.length}
+          onPick={(index) => dispatch({ type: 'draftPick', index })}
         />
       )}
 

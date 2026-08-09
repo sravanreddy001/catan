@@ -1152,6 +1152,128 @@ body {
   margin: 12px 0;
 }
 
+/* Draft: three cards side by side on desktop, stacked rows on a phone, where
+   three columns would squeeze the rule text into unreadable slivers. */
+.draft__hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.draft__options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.draft__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+}
+
+.draft__card:hover,
+.draft__card:focus-visible {
+  border-color: #f3c969;
+  background: rgba(243, 201, 105, 0.14);
+}
+
+.draft__art {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.draft__name {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.draft__rule {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+@media (max-width: 560px) {
+  .draft__options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .draft__card {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+  }
+
+  .draft__art {
+    font-size: 26px;
+  }
+}
+
+/* Preset bundles. Deliberately not a selected/unselected control: pressing one
+   only writes values into the fields below, which stay editable — a persistent
+   "active preset" highlight would imply a mode the settings don't have. */
+.lobby__presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.lobby__preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+}
+
+.lobby__preset:hover,
+.lobby__preset:focus-visible {
+  border-color: #f3c969;
+  background: rgba(243, 201, 105, 0.14);
+}
+
+.lobby__preset-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.lobby__preset-name {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lobby__preset-blurb {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+/* On a phone the blurb wraps to three lines and pushes the toggles out of the
+   scroll box before anyone has read them. The name plus the button's title
+   carries it; the settings underneath show what the preset actually did. */
+@media (max-width: 560px) {
+  .lobby__preset-blurb {
+    display: none;
+  }
+}
+
 /* The answer window on a bot's offer. Deliberately quiet — it is a deadline,
    not an alarm, and must not pull the eye off the two baskets below it. */
 .offer__clock {

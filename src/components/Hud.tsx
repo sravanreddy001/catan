@@ -180,7 +180,8 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
     settings.bankPreset !== 'standard' ||
     settings.santaMode ||
     settings.speedMode ||
-    settings.newDevCards
+    settings.newDevCards ||
+    settings.draftDevCards
   const hasActiveBotPresets = Object.values(botPresets).some((p) => p !== null)
   const hasNonDefault = hasNonDefaultSettings || hasActiveBotPresets
 
@@ -214,6 +215,7 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
         {settings.santaMode && <span title="Santa mode">🎅</span>}
         {settings.speedMode && <span title="Speed mode">⚡</span>}
         {settings.newDevCards && <span title="Expanded dev card deck">🃏</span>}
+        {settings.draftDevCards && <span title="Dev card drafting">🎴</span>}
         {hasActiveBotPresets && Object.entries(botPresets).map(([seat, preset]) => {
           if (!preset) return null
           return <span key={seat} title={`Bot ${seat}: ${preset}`}>{presetEmojis[preset]}</span>
@@ -237,6 +239,7 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
               {settings.santaMode && <div>✓ Santa mode: friendly variant (no robber)</div>}
               {settings.speedMode && <div>✓ Speed mode: auto-placed setup, 2 rolls per turn</div>}
               {settings.newDevCards && <div>✓ New dev cards: Merchant, Trailblazer, Diplomat, Merit — fewer knights</div>}
+              {settings.draftDevCards && <div>✓ Dev card drafting: buying reveals three, you pick one</div>}
               {hasActiveBotPresets && (
                 <>
                   <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
@@ -548,6 +551,44 @@ export function DevCardSheet({
             Play {DEV_LABEL[card.kind]}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The draft: the cards a purchase revealed, one of which must be taken. There
+ * is deliberately no cancel — the cost is already paid by the time this opens,
+ * and the cards are off the deck until a pick puts the rest back.
+ */
+export function DraftPicker({
+  options,
+  deckCount,
+  onPick,
+}: {
+  options: DevKind[]
+  deckCount: number
+  onPick: (index: number) => void
+}) {
+  return (
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="draft-title">
+      <div className="modal__panel">
+        <h2 id="draft-title" className="modal__title">
+          {options.length === 1 ? 'Last card in the deck' : `Pick one of ${options.length}`}
+        </h2>
+        <p className="draft__hint">
+          The ones you leave go to the bottom of the deck — delayed, not gone.
+        </p>
+        <div className="draft__options">
+          {options.map((kind, i) => (
+            <button key={`${kind}-${i}`} className="draft__card" onClick={() => onPick(i)}>
+              <span className="draft__art">{DEV_ICON[kind]}</span>
+              <span className="draft__name">{DEV_LABEL[kind]}</span>
+              <span className="draft__rule">{DEV_RULE[kind]}</span>
+            </button>
+          ))}
+        </div>
+        <p className="cardsheet__meta">{deckCount} cards left in the deck</p>
       </div>
     </div>
   )

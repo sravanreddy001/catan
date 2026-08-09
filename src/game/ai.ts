@@ -20,6 +20,7 @@ import {
   canAffordDev,
   randomDiscard,
   victoryPoints,
+  type DevKind,
   type Player,
   type PlayerId,
 } from './players'
@@ -204,6 +205,52 @@ function tradeTowardsGoal(state: GameState, seat: number, preset: AIPreset = nul
   return null
 }
 
+/**
+ * Which of the revealed cards a bot takes. Scored by what the card is worth to
+ * *this* bot right now, not by a fixed ranking: a knight is worth more while
+ * the largest army is still winnable, the free-resource cards are worth more
+ * when the current build is short, and a victory card is worth most when it
+ * would finish the game.
+ */
+export function chooseDraft(state: GameState, seat: number, preset: AIPreset = null): number {
+  const options = state.draft ?? []
+  if (options.length === 0) return 0
+  const config = getPresetConfig(preset)
+  const me = state.players[seat]
+  const need = { ...missingFor(me, 'settlement'), ...missingFor(me, 'city') }
+  const shortBy = Object.values(need).reduce((sum, n) => sum + (n ?? 0), 0)
+  const armyLead = Math.max(0, ...state.players.filter((p) => p.id !== seat).map((p) => p.knights))
+  const vpNow = victoryPoints(me, null, null)
+
+  const score = (kind: DevKind): number => {
+    switch (kind) {
+      case 'victory':
+        // Worth everything if it wins outright, a slow point otherwise.
+        return vpNow + 1 >= state.settings.vpTarget ? 100 : 4
+      case 'knight':
+        // Chasing the army bonus, or just needing the robber moved off a tile.
+        return me.knights >= armyLead ? 5 + config.hitsLeaderBonus / 4 : 3
+      case 'merit':
+      case 'plenty':
+      case 'merchant':
+        return 2 + shortBy
+      case 'monopoly':
+        return 3 + shortBy / 2
+      case 'roadBuilding':
+      case 'trailblazer':
+        return me.roads.length < PIECE_LIMITS.roads ? 3 : 0
+      case 'diplomat':
+        return 2
+    }
+  }
+
+  let bestIndex = 0
+  for (let i = 1; i < options.length; i++) {
+    if (score(options[i]) > score(options[bestIndex])) bestIndex = i
+  }
+  return bestIndex
+}
+
 /** At most this many table offers per turn, so a refused bot never loops. */
 const MAX_OFFERS_PER_TURN = 2
 
@@ -251,6 +298,9 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
   const me = state.players[seat]
 
   // --- forced follow-ups first -------------------------------------------
+  // An open draft is already paid for and blocks everything else.
+  if (state.draft) return { type: 'draftPick', index: chooseDraft(state, seat, preset) }
+
   if (state.picking === 'monopoly') {
     const totals = ALL.map((res) => ({
       res,

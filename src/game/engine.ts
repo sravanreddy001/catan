@@ -48,7 +48,12 @@ export interface GameSettings {
   speedMode: boolean
   /** Expanded dev deck: adds Merchant, Trailblazer, Diplomat and Merit, with fewer knights. */
   newDevCards: boolean
+  /** Buying a dev card reveals the top few and the buyer picks one. */
+  draftDevCards: boolean
 }
+
+/** How many cards a draft reveals when the deck can supply that many. */
+export const DRAFT_SIZE = 3
 
 export function defaultSettings(): GameSettings {
   return {
@@ -58,6 +63,7 @@ export function defaultSettings(): GameSettings {
     santaMode: false,
     speedMode: false,
     newDevCards: false,
+    draftDevCards: false,
   }
 }
 
@@ -106,7 +112,21 @@ export interface GameState {
   playedDev: boolean
   /** Free roads owed by a road-building card. */
   freeRoads: number
+  /**
+   * Serial number for dev-card ids. Two cards bought in the same millisecond
+   * at the same deck size used to collide on a `Date.now()`-based id, and
+   * `playDev`'s lookup then kept finding the wrong card — a silent no-op the
+   * bots retried forever. A counter carried in state stays unique across a
+   * save/reload too, which a module-level counter would not.
+   */
+  cardSeq: number
   picking: 'monopoly' | 'plenty' | 'santaBonus' | 'meritBonus' | null
+  /**
+   * An open draft: the cards revealed by a purchase, awaiting a pick. The
+   * buyer has already paid, so this blocks the turn the same way `picking`
+   * does — the cards are off the deck until the pick puts the rest back.
+   */
+  draft: DevKind[] | null
   plentyLeft: number
   /**
    * An open Merchant play: baskets fill freely across resource types and the
@@ -129,6 +149,8 @@ export type Action =
   | { type: 'setMode'; mode: Mode }
   | { type: 'bankTrade'; give: Resource; get: Resource }
   | { type: 'buyDev' }
+  /** Take the card at `index` from an open draft; the rest go to the deck's bottom. */
+  | { type: 'draftPick'; index: number }
   | { type: 'playDev'; cardId: string }
   | { type: 'monopoly'; res: Resource }
   | { type: 'plenty'; res: Resource }
@@ -200,6 +222,8 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     playedDev: false,
     freeRoads: 0,
     picking: null,
+    draft: null,
+    cardSeq: 0,
     plentyLeft: 0,
     merchant: null,
     discards: {},
@@ -659,6 +683,7 @@ function step(state: GameState, action: Action): GameState {
         state.phase !== 'play' ||
         state.mode === 'robber' ||
         state.picking !== null ||
+        state.draft ||
         state.merchant
       ) {
         return state
@@ -748,11 +773,35 @@ function step(state: GameState, action: Action): GameState {
     }
 
     case 'buyDev': {
-      if (!canAffordDev(current) || state.deck.length === 0) return state
+      if (!canAffordDev(current) || state.deck.length === 0 || state.draft) return state
+
+      // Drafting pays now and hands over the choice: the revealed cards leave
+      // the deck so nobody can draw them mid-decision, and `draftPick` puts
+      // the ones not taken back at the bottom.
+      if (state.settings.draftDevCards) {
+        const revealed = state.deck.slice(0, DRAFT_SIZE)
+        return {
+          ...state,
+          deck: state.deck.slice(revealed.length),
+          draft: revealed,
+          bank: refund(state.bank, DEV_COST),
+          players: withCurrent(state, (p) => {
+            const hand = { ...p.hand }
+            for (const [res, n] of Object.entries(DEV_COST)) hand[res as Resource] -= n ?? 0
+            return { ...p, hand }
+          }),
+          message:
+            revealed.length === 1
+              ? 'One card left in the deck — take it.'
+              : `Pick one of ${revealed.length} cards.`,
+        }
+      }
+
       const [kind, ...rest] = state.deck
       return {
         ...state,
         deck: rest,
+        cardSeq: (state.cardSeq ?? 0) + 1,
         bank: refund(state.bank, DEV_COST),
         players: withCurrent(state, (p) => {
           const hand = { ...p.hand }
@@ -762,11 +811,34 @@ function step(state: GameState, action: Action): GameState {
             hand,
             devCards: [
               ...p.devCards,
-              { id: `${p.id}-${state.deck.length}-${Date.now()}`, kind, ready: false },
+              { id: `${p.id}-${state.cardSeq ?? 0}`, kind, ready: false },
             ],
           }
         }),
         message: `Bought a development card (${rest.length} left).`,
+      }
+    }
+
+    case 'draftPick': {
+      if (!state.draft) return state
+      const kind = state.draft[action.index]
+      if (!kind) return state
+      // The rest go to the bottom in the order they were revealed: delayed,
+      // never denied — a draft cannot remove a card kind from the game.
+      const rest = state.draft.filter((_, i) => i !== action.index)
+      return {
+        ...state,
+        deck: [...state.deck, ...rest],
+        draft: null,
+        cardSeq: (state.cardSeq ?? 0) + 1,
+        players: withCurrent(state, (p) => ({
+          ...p,
+          devCards: [
+            ...p.devCards,
+            { id: `${p.id}-${state.cardSeq ?? 0}`, kind, ready: false },
+          ],
+        })),
+        message: `Drafted a development card (${state.deck.length + rest.length} left).`,
       }
     }
 
@@ -976,7 +1048,7 @@ function step(state: GameState, action: Action): GameState {
       return { ...state, offer: null, message: 'Offer cancelled.' }
 
     case 'endTurn': {
-      if (state.phase !== 'play' || state.mode === 'robber' || state.picking || state.merchant) return state
+      if (state.phase !== 'play' || state.mode === 'robber' || state.picking || state.draft || state.merchant) return state
       const next = (state.turn + 1) % state.players.length
       const nextId = state.order[next]
       return {
@@ -989,6 +1061,7 @@ function step(state: GameState, action: Action): GameState {
         playedDev: false,
         freeRoads: 0,
         picking: null,
+        draft: null,
         mode: null,
         dice: null,
         hasRolled: false,
