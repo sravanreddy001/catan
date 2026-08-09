@@ -463,6 +463,22 @@ export function chooseDiscard(state: GameState, seat: number, _preset: AIPreset 
  * How a bot answers a trade offer aimed at it: accept only when it can cover
  * the request and the incoming cards help more than what it gives up.
  */
+/**
+ * Bots always agree to stop. The vote exists so no *person* is forced out of a
+ * game they are still enjoying, and a bot has no such stake. Judging it on the
+ * bot's own position instead — agreeing only once it had nothing left to build
+ * — made the control dead in practice: across 40 simulated games where a stop
+ * was proposed at turn 12, not one bot ever agreed, because every bot could
+ * still build. A button that never works is worse than no button.
+ *
+ * Consequence, and it is the intended one: in a solo game against bots, the
+ * proposer ends the game immediately. Online, every other human still has to
+ * agree.
+ */
+export function respondToEnd(_state: GameState, _seat: number): boolean {
+  return true
+}
+
 export function respondToOffer(state: GameState, seat: number, preset: AIPreset = null): 'accept' | 'decline' {
   const config = getPresetConfig(preset)
   const offer = state.offer

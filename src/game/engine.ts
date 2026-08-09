@@ -51,6 +51,12 @@ export interface GameSettings {
   newDevCards: boolean
   /** Buying a dev card reveals the top few and the buyer picks one. */
   draftDevCards: boolean
+  /**
+   * Endless mode: the VP target stops being a win condition. The game runs
+   * until nobody can build anything further, or until the table votes to stop,
+   * and the highest score then wins.
+   */
+  endless: boolean
 }
 
 /** How many cards a draft reveals when the deck can supply that many. */
@@ -65,6 +71,7 @@ export function defaultSettings(): GameSettings {
     speedMode: false,
     newDevCards: false,
     draftDevCards: false,
+    endless: false,
   }
 }
 
@@ -139,6 +146,13 @@ export interface GameState {
   discards: Partial<Record<PlayerId, number>>
   /** Random turn order, shuffled once at game start; `turn`/`setupIndex` index into this. */
   order: PlayerId[]
+  /**
+   * An open "end the game now" vote (endless mode only). Every other player has
+   * to accept; one refusal cancels it. Null in every non-endless game, and
+   * absent from saves written before endless mode shipped, so read it as
+   * `endVote ?? null`.
+   */
+  endVote: { from: PlayerId; accepted: PlayerId[] } | null
   settings: GameSettings
 }
 
@@ -166,6 +180,8 @@ export type Action =
   | { type: 'declineOffer'; responder: PlayerId }
   | { type: 'cancelOffer' }
   | { type: 'discard'; playerId: PlayerId; cards: Partial<Record<Resource, number>> }
+  | { type: 'proposeEnd' }
+  | { type: 'respondEnd'; responder: PlayerId; accept: boolean }
   | { type: 'endTurn' }
 
 /** Snake order for the opening placements, e.g. 1,3,0,2,2,0,3,1 for order [1,3,0,2]. */
@@ -225,6 +241,7 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     message: `${players[order[0]].name}: place your first settlement.`,
     offer: null,
     offersMade: 0,
+    endVote: null,
     deck: createDevDeck(
       Math.random,
       finalSettings.newDevCards,
@@ -560,11 +577,83 @@ function refund(
   return next
 }
 
+/**
+ * Could this player still place a piece, given an unlimited supply of
+ * resources? Deliberately ignores what they can currently afford: production
+ * keeps arriving, so "cannot afford it right now" is not the end of anything.
+ * What does end the game is running out of pieces or out of legal places.
+ */
+export function canStillBuild(state: GameState, player: Player): boolean {
+  const { board, players } = state
+  const occupied = occupiedVertices(players)
+  const used = takenEdges(players)
+
+  // A city needs a settlement of their own to upgrade, and a city piece left.
+  if (player.cities.length < PIECE_LIMITS.cities && player.settlements.length > 0) return true
+
+  const endpoints = new Set<string>()
+  for (const eid of player.roads) {
+    const e = board.edges.find((x) => x.id === eid)
+    if (!e) continue
+    endpoints.add(e.a)
+    endpoints.add(e.b)
+  }
+
+  if (player.settlements.length < PIECE_LIMITS.settlements) {
+    for (const v of endpoints) {
+      if (!occupied.has(v) && vertexNeighbours(board, v).every((n) => !occupied.has(n))) return true
+    }
+  }
+
+  if (player.roads.length < PIECE_LIMITS.roads) {
+    for (const e of board.edges) {
+      if (!used.has(e.id) && (endpoints.has(e.a) || endpoints.has(e.b))) return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Endless mode's natural stopping point: nobody can place another piece and
+ * the deck is spent, so no further points can be scored by anyone.
+ */
+function nothingLeftToDo(state: GameState): boolean {
+  if (state.deck.length > 0) return false
+  return state.players.every((p) => !canStillBuild(state, p))
+}
+
+/** Highest score wins; ties go to longest road, then largest army, then seat order. */
+function leaderByScore(state: GameState): Player {
+  const largestArmy = largestArmyHolder(state.players)
+  const longestRoad = longestRoadHolder(state.board, state.players)
+  return [...state.players].sort((a, b) => {
+    const diff =
+      victoryPointHalves(b, largestArmy, longestRoad) -
+      victoryPointHalves(a, largestArmy, longestRoad)
+    if (diff !== 0) return diff
+    if (a.id === longestRoad) return -1
+    if (b.id === longestRoad) return 1
+    if (a.id === largestArmy) return -1
+    if (b.id === largestArmy) return 1
+    return a.id - b.id
+  })[0]
+}
+
 export function reduce(state: GameState, action: Action): GameState {
   // Once won, the board is frozen: no further moves count.
   if (state.winner !== null) return state
   const next = step(state, action)
   if (next === state) return state
+
+  // Endless mode: the target never fires. The game ends when the board is
+  // played out, or when the table has voted to stop (handled in `step`).
+  if (next.settings.endless) {
+    if (!nothingLeftToDo(next)) return next
+    const leader = leaderByScore(next)
+    return { ...next, winner: leader.id, message: `Nothing left to build — ${leader.name} wins on points.` }
+  }
+
   const largestArmy = largestArmyHolder(next.players)
   const longestRoad = longestRoadHolder(next.board, next.players)
   // Compared in halves so a Merit's half-point can never round a player over
@@ -1059,6 +1148,42 @@ function step(state: GameState, action: Action): GameState {
       if (!state.offer) return state
       return { ...state, offer: null, message: 'Offer cancelled.' }
 
+    case 'proposeEnd': {
+      // Endless has no target to reach, so the table needs a way to agree it
+      // is finished. One refusal is enough to keep playing.
+      if (!state.settings.endless || state.phase !== 'play' || state.endVote) return state
+      const from = currentPlayerId(state) as PlayerId
+      return {
+        ...state,
+        endVote: { from, accepted: [] },
+        message: `${state.players[from].name} wants to end the game — everyone must agree.`,
+      }
+    }
+
+    case 'respondEnd': {
+      const vote = state.endVote
+      if (!vote || action.responder === vote.from || vote.accepted.includes(action.responder)) return state
+      if (!action.accept) {
+        return {
+          ...state,
+          endVote: null,
+          message: `${state.players[action.responder].name} wants to keep playing.`,
+        }
+      }
+      const accepted = [...vote.accepted, action.responder]
+      if (accepted.length < state.players.length - 1) {
+        const waiting = state.players.length - 1 - accepted.length
+        return { ...state, endVote: { ...vote, accepted }, message: `${waiting} more to agree to end the game.` }
+      }
+      const leader = leaderByScore(state)
+      return {
+        ...state,
+        endVote: null,
+        winner: leader.id,
+        message: `The table agreed to stop — ${leader.name} wins on points.`,
+      }
+    }
+
     case 'endTurn': {
       if (state.phase !== 'play' || state.mode === 'robber' || state.picking || state.draft || state.merchant) return state
       const next = (state.turn + 1) % state.players.length
@@ -1080,6 +1205,8 @@ function step(state: GameState, action: Action): GameState {
         rollCount: 0,
         offer: null,
         offersMade: 0,
+        // An unresolved vote does not carry into someone else's turn.
+        endVote: null,
         message: `${state.players[nextId].name} to roll.`,
       }
     }

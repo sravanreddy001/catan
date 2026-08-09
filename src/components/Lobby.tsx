@@ -110,6 +110,8 @@ function SettingsFields({
   setNewDevCards,
   draftDevCards,
   setDraftDevCards,
+  endless,
+  setEndless,
   vpTarget,
   setVpTarget,
   bankPreset,
@@ -126,6 +128,8 @@ function SettingsFields({
   setNewDevCards: (v: boolean) => void
   draftDevCards: boolean
   setDraftDevCards: (v: boolean) => void
+  endless: boolean
+  setEndless: (v: boolean) => void
   vpTarget: number
   setVpTarget: (v: number) => void
   bankPreset: GameSettings['bankPreset']
@@ -137,6 +141,7 @@ function SettingsFields({
     { checked: speedMode, onChange: setSpeedMode, label: 'Speed mode (auto setup, 2 rolls per turn)' },
     { checked: newDevCards, onChange: setNewDevCards, label: 'New dev cards (Merchant, Trailblazer, Diplomat, Merit)' },
     { checked: draftDevCards, onChange: setDraftDevCards, label: 'Dev card drafting (see three, pick one)' },
+    { checked: endless, onChange: setEndless, label: 'Endless (no target — play until the board fills up)' },
   ]
 
   /** Presets only touch the fields they name; the rest keep their values. */
@@ -146,6 +151,7 @@ function SettingsFields({
     if (values.speedMode !== undefined) setSpeedMode(values.speedMode)
     if (values.newDevCards !== undefined) setNewDevCards(values.newDevCards)
     if (values.draftDevCards !== undefined) setDraftDevCards(values.draftDevCards)
+    if (values.endless !== undefined) setEndless(values.endless)
     if (values.vpTarget !== undefined) setVpTarget(values.vpTarget)
     if (values.bankPreset !== undefined) setBankPreset(values.bankPreset)
   }
@@ -242,9 +248,10 @@ export default function Lobby({
   const [speedMode, setSpeedMode] = useState(false)
   const [newDevCards, setNewDevCards] = useState(false)
   const [draftDevCards, setDraftDevCards] = useState(false)
+  const [endless, setEndless] = useState(false)
   const [botPresets, setBotPresets] = useState<Record<number, AIPreset>>({})
 
-  const settings = { publicHands, vpTarget, bankPreset, santaMode, speedMode, newDevCards, draftDevCards }
+  const settings = { publicHands, vpTarget, bankPreset, santaMode, speedMode, newDevCards, draftDevCards, endless }
 
   /** Seats 1..opponents; a seat with no explicit pick plays the default. */
   function presetsForStart(): Record<number, AIPreset> {
@@ -318,6 +325,8 @@ export default function Lobby({
                   newDevCards={newDevCards}
                   setNewDevCards={setNewDevCards}
                   draftDevCards={draftDevCards}
+                  endless={endless}
+                  setEndless={setEndless}
                   setDraftDevCards={setDraftDevCards}
                   vpTarget={vpTarget}
                   setVpTarget={setVpTarget}
@@ -402,6 +411,8 @@ export default function Lobby({
                   newDevCards={newDevCards}
                   setNewDevCards={setNewDevCards}
                   draftDevCards={draftDevCards}
+                  endless={endless}
+                  setEndless={setEndless}
                   setDraftDevCards={setDraftDevCards}
                   vpTarget={vpTarget}
                   setVpTarget={setVpTarget}
@@ -477,6 +488,7 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
   const [speedMode, setSpeedMode] = useState(settings.speedMode)
   const [newDevCards, setNewDevCards] = useState(settings.newDevCards)
   const [draftDevCards, setDraftDevCards] = useState(settings.draftDevCards)
+  const [endless, setEndless] = useState(settings.endless)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -539,6 +551,8 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
               newDevCards={newDevCards}
               setNewDevCards={setNewDevCards}
               draftDevCards={draftDevCards}
+              endless={endless}
+              setEndless={setEndless}
               setDraftDevCards={setDraftDevCards}
               vpTarget={vpTarget}
               setVpTarget={setVpTarget}
@@ -549,7 +563,7 @@ export function WaitingRoom({ code, names, colors, isHost, status, settings, onS
         )}
 
         {isHost ? (
-          <button className="btn btn--primary" disabled={names.length < 2} onClick={() => onStart({ publicHands, vpTarget, bankPreset, santaMode, speedMode, newDevCards, draftDevCards })}>
+          <button className="btn btn--primary" disabled={names.length < 2} onClick={() => onStart({ publicHands, vpTarget, bankPreset, santaMode, speedMode, newDevCards, draftDevCards, endless })}>
             {names.length < 2 ? 'Waiting for players…' : `Start with ${names.length}`}
           </button>
         ) : (

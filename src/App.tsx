@@ -13,6 +13,7 @@ import {
   DiscardPicker,
   HandBar,
   OfferComposer,
+  EndVote,
   OfferResponse,
   PendingOffer,
   PlayerStrip,
@@ -34,7 +35,7 @@ import {
   type GameSettings,
   type GameState,
 } from './game/engine'
-import { chooseAction, chooseDiscard, respondToOffer, type AIPreset } from './game/ai'
+import { chooseAction, chooseDiscard, respondToEnd, respondToOffer, type AIPreset } from './game/ai'
 import {
   PALETTE,
   canAffordDev,
@@ -195,6 +196,23 @@ export default function App() {
           : { type: 'declineOffer', responder: responders[0] as PlayerId },
       )
     }, 900)
+    return () => window.clearTimeout(timer)
+  }, [state, botPresets, dispatch])
+
+  // Bots answer an open end-of-game vote themselves, one per tick, so a vote
+  // never sits waiting on a seat nobody is playing.
+  useEffect(() => {
+    const vote = state?.endVote
+    if (!state || !vote) return
+    const pending = Object.keys(botPresets)
+      .map(Number)
+      .filter((s) => s !== vote.from && !vote.accepted.includes(s as PlayerId))
+    if (pending.length === 0) return
+
+    const timer = window.setTimeout(() => {
+      const seat = pending[0]
+      dispatch({ type: 'respondEnd', responder: seat as PlayerId, accept: respondToEnd(state, seat) })
+    }, 600)
     return () => window.clearTimeout(timer)
   }, [state, botPresets, dispatch])
 
@@ -450,6 +468,7 @@ export default function App() {
           largestArmy={largestArmy}
           longestRoad={longestRoad}
           vpTarget={state.settings.vpTarget}
+          endless={state.settings.endless}
         />
         <div className="topbar__actions">
           <button
@@ -652,6 +671,17 @@ export default function App() {
         />
       )}
 
+      {state.endVote && !(viewerSeat in botPresets) && viewerSeat !== state.endVote.from && (
+        <EndVote
+          vote={state.endVote}
+          players={state.players}
+          answerable={state.players
+            .map((p) => p.id)
+            .filter((id) => !(id in botPresets)) as PlayerId[]}
+          onRespond={(responder, accept) => dispatch({ type: 'respondEnd', responder, accept })}
+        />
+      )}
+
       {/* Stays up for the proposer until it's accepted, cancelled, or everyone's declined. */}
       {state.offer && state.offer.from === viewerSeat && (
         <PendingOffer
@@ -759,6 +789,8 @@ export default function App() {
               onCancel={() => dispatch({ type: 'setMode', mode: null })}
               canOffer={state.players.length > 1}
               onOffer={() => setComposingOffer(true)}
+              canProposeEnd={state.settings.endless && !state.endVote}
+              onProposeEnd={() => dispatch({ type: 'proposeEnd' })}
             />
           </footer>
         </div>

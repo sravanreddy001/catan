@@ -97,13 +97,17 @@ export function PlayerStrip({
   largestArmy,
   longestRoad,
   vpTarget = 10,
+  endless = false,
 }: {
   players: Player[]
   current: number
   largestArmy: PlayerId | null
   longestRoad: PlayerId | null
   vpTarget?: number
+  /** Endless games have no target, so scores are shown as running totals. */
+  endless?: boolean
 }) {
+  const outOf = endless ? '' : ` / ${vpTarget}`
   return (
     <div className="strip">
       {players.map((p) => {
@@ -111,7 +115,7 @@ export function PlayerStrip({
         const tooltipTitle = `${p.name}'s Score Breakdown:
 • Settlements: ${breakdown.settlements} (${breakdown.settlementPoints} VP)
 • Cities: ${breakdown.cities} (${breakdown.cityPoints} VP)${breakdown.devCardPoints > 0 ? `\n• Victory Point Cards: ${breakdown.devCardPoints} VP` : ''}${breakdown.largestArmy ? '\n• Largest Army: 2 VP' : ''}${breakdown.longestRoad ? '\n• Longest Road: 2 VP' : ''}
-Total: ${formatVP(breakdown.total)} / ${vpTarget} VP`
+Total: ${formatVP(breakdown.total)}${outOf} VP`
 
         return (
           <div
@@ -126,7 +130,7 @@ Total: ${formatVP(breakdown.total)} / ${vpTarget} VP`
             {largestArmy === p.id && <span title="Largest army (2 VP)">⚔️</span>}
             {longestRoad === p.id && <span title="Longest road (2 VP)">🛣️</span>}
             <span className="chip__vp">
-              {formatVP(breakdown.total)} / {vpTarget}
+              {formatVP(breakdown.total)}{outOf}
             </span>
 
             <div className="chip__tooltip">
@@ -159,7 +163,7 @@ Total: ${formatVP(breakdown.total)} / ${vpTarget} VP`
               )}
               <div className="chip__tooltip-total">
                 <span>Total</span>
-                <span>{formatVP(breakdown.total)} / {vpTarget}</span>
+                <span>{formatVP(breakdown.total)}{outOf}</span>
               </div>
             </div>
           </div>
@@ -181,7 +185,8 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
     settings.santaMode ||
     settings.speedMode ||
     settings.newDevCards ||
-    settings.draftDevCards
+    settings.draftDevCards ||
+    settings.endless
   const hasActiveBotPresets = Object.values(botPresets).some((p) => p !== null)
   const hasNonDefault = hasNonDefaultSettings || hasActiveBotPresets
 
@@ -210,12 +215,13 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
       >
         <span>⚙️</span>
         {settings.publicHands && <span title="Public hands mode">👁️</span>}
-        {settings.vpTarget !== 10 && <span title={`VP target: ${settings.vpTarget}`}>🎯</span>}
+        {!settings.endless && settings.vpTarget !== 10 && <span title={`VP target: ${settings.vpTarget}`}>🎯</span>}
         {settings.bankPreset !== 'standard' && <span title={`Bank: ${bankPresetLabel[settings.bankPreset]}`}>🏦</span>}
         {settings.santaMode && <span title="Santa mode">🎅</span>}
         {settings.speedMode && <span title="Speed mode">⚡</span>}
         {settings.newDevCards && <span title="Expanded dev card deck">🃏</span>}
         {settings.draftDevCards && <span title="Dev card drafting">🎴</span>}
+        {settings.endless && <span title="Endless mode">♾️</span>}
         {hasActiveBotPresets && Object.entries(botPresets).map(([seat, preset]) => {
           if (!preset) return null
           return <span key={seat} title={`Bot ${seat}: ${preset}`}>{presetEmojis[preset]}</span>
@@ -234,7 +240,9 @@ export function SettingsChip({ settings, botPresets = {} }: { settings: GameSett
             <h2 id="settings-dialog-title" className="modal__title">Game settings</h2>
             <div style={{ fontSize: '0.9rem', lineHeight: '1.8' }}>
               {settings.publicHands && <div>✓ Public hands: all players' cards visible</div>}
-              {settings.vpTarget !== 10 && <div>✓ VP target: {settings.vpTarget} points to win</div>}
+              {settings.endless
+                ? <div>✓ Endless: no target — play until the board fills up</div>
+                : settings.vpTarget !== 10 && <div>✓ VP target: {settings.vpTarget} points to win</div>}
               {settings.bankPreset !== 'standard' && <div>✓ Bank preset: {bankPresetLabel[settings.bankPreset]}</div>}
               {settings.santaMode && <div>✓ Santa mode: friendly variant (no robber)</div>}
               {settings.speedMode && <div>✓ Speed mode: auto-placed setup, 2 rolls per turn</div>}
@@ -1070,6 +1078,48 @@ interface OfferResponseProps {
 }
 
 /** Hot-seat: pass the device, the named player answers. */
+/** Endless mode's "shall we stop?" vote. Every other player has to agree. */
+export function EndVote({
+  vote,
+  players,
+  answerable,
+  onRespond,
+}: {
+  vote: { from: PlayerId; accepted: PlayerId[] }
+  players: Player[]
+  /** Seats this client may answer for — bots answer themselves. */
+  answerable: PlayerId[]
+  onRespond: (responder: PlayerId, accept: boolean) => void
+}) {
+  const proposer = players.find((p) => p.id === vote.from)!
+  const pending = players.filter(
+    (p) => p.id !== vote.from && !vote.accepted.includes(p.id) && answerable.includes(p.id),
+  )
+  if (pending.length === 0) return null
+  const waiting = players.length - 1 - vote.accepted.length
+
+  return (
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="end-vote-title">
+      <div className="modal__panel">
+        <h2 id="end-vote-title" className="modal__title">{proposer.name} wants to end the game</h2>
+        <p className="draft__hint">
+          Everyone has to agree. If you all do, the highest score wins. Waiting on {waiting}.
+        </p>
+        <div className="offer__responders">
+          {pending.map((p) => (
+            <button key={p.id} className="btn btn--accept" onClick={() => onRespond(p.id, true)}>
+              {pending.length > 1 ? `${p.name} agrees` : 'End the game'}
+            </button>
+          ))}
+        </div>
+        <button className="btn" onClick={() => onRespond(pending[0].id, false)}>
+          Keep playing
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function OfferResponse({ offer, players, answerable, secondsLeft, onAccept, onDecline }: OfferResponseProps) {
   useEscapeKey(onDecline)
   const proposer = players.find((p) => p.id === offer.from)!
@@ -1168,6 +1218,9 @@ interface ActionBarProps {
   myTurn?: boolean
   /** Hidden in a solo game — nobody to trade with. */
   canOffer: boolean
+  /** Endless mode only: propose that the table stops and scores as it stands. */
+  canProposeEnd?: boolean
+  onProposeEnd?: () => void
   /** Buying a dev card sits in the build row: it is a fourth thing you buy. */
   canBuyDev: boolean
   /** Deck exhausted — the same permanent "none left" as a spent piece. */
@@ -1186,6 +1239,8 @@ export function ActionBar({
   hasRolled,
   myTurn = true,
   canOffer,
+  canProposeEnd = false,
+  onProposeEnd,
   canBuyDev,
   devDeckEmpty,
   onBuild,
@@ -1296,6 +1351,16 @@ export function ActionBar({
           {canOffer && (
             <button className="btn btn--trade" onClick={onOffer} disabled={!canAct}>
               <span className="btn__label">Trade</span>
+            </button>
+          )}
+          {canProposeEnd && (
+            <button
+              className="btn"
+              onClick={onProposeEnd}
+              disabled={!canAct}
+              title="Ask everyone to stop and score as it stands"
+            >
+              <span className="btn__label">End game</span>
             </button>
           )}
           <button
