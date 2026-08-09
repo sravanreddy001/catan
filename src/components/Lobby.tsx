@@ -282,7 +282,7 @@ export default function Lobby({
             <div className="lobby__field">
               <span className="lobby__field-label">Opponents</span>
               <div className="lobby__counts">
-                {[1, 2, 3].map((n) => (
+                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
                   <button
                     key={n}
                     className={`lobby__count-card${opponents === n ? ' lobby__count-card--on' : ''}`}
@@ -290,8 +290,8 @@ export default function Lobby({
                     onClick={() => setOpponents(n)}
                   >
                     <span className="lobby__count-num">{n}</span>
-                    <span className="lobby__count-sub">{n === 1 ? '1 Bot' : `${n} Bots`}</span>
-                    <span className="lobby__count-badge">{n + 1} players</span>
+                    <span className="lobby__count-sub">{n === 1 ? '1 bot' : `${n} bots`}</span>
+                    <span className="lobby__count-badge">{n + 1}p</span>
                   </button>
                 ))}
               </div>

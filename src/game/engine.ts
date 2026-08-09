@@ -3,6 +3,7 @@
 
 import {
   createBoard,
+  ringsForPlayers,
   longestRoadLength,
   tradeRates,
   vertexNeighbours,
@@ -188,13 +189,19 @@ function shuffledOrder(count: number): PlayerId[] {
 }
 
 export function createGame(playerCount: number, names?: string[], colors?: number[], settings?: Partial<GameSettings>): GameState {
-  const board = createBoard()
+  // 5+ players get the wider board; anything else is the standard 19 tiles.
+  const board = createBoard(Math.random, ringsForPlayers(playerCount))
   const players = createPlayers(playerCount, colors).map((p, i) =>
     names?.[i] ? { ...p, name: names[i] } : p,
   )
   const order = shuffledOrder(playerCount)
   const finalSettings = { ...defaultSettings(), ...settings }
-  const bankPerResource = BANK_PRESET_VALUES[finalSettings.bankPreset]
+  // The bank is a shared pool, so a bigger table drains it faster for reasons
+  // that have nothing to do with the scarce-bank setting. Above four players it
+  // scales with the seat count so "standard" still means standard.
+  const bankPerResource = Math.round(
+    BANK_PRESET_VALUES[finalSettings.bankPreset] * (playerCount > 4 ? playerCount / 4 : 1),
+  )
   const state: GameState = {
     board,
     players,

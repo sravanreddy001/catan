@@ -5,6 +5,10 @@
 
 import Peer, { type DataConnection } from 'peerjs'
 import type { Action, GameState } from '../game/engine'
+import { PALETTE } from '../game/players'
+
+/** One seat per palette swatch — a room cannot seat more than the board can colour. */
+const MAX_SEATS = PALETTE.length
 
 /** Peer ids must be globally unique, so the short room code gets a prefix. */
 const PEER_PREFIX = 'catan-hex-'
@@ -125,7 +129,7 @@ export class HostSession {
   /** A guest's preferred color if free, otherwise the first one nobody has taken. */
   private resolveColor(preferred: number): number {
     if (!this.colors.includes(preferred)) return preferred
-    for (let i = 0; i < 4; i++) if (!this.colors.includes(i)) return i
+    for (let i = 0; i < PALETTE.length; i++) if (!this.colors.includes(i)) return i
     return preferred
   }
 
@@ -136,7 +140,7 @@ export class HostSession {
         // A guest returning after a refresh keeps the seat matching its name.
         let seat = this.names.indexOf(msg.name)
         if (seat <= 0) {
-          if (this.names.length >= 4) {
+          if (this.names.length >= MAX_SEATS) {
             conn.close()
             return
           }

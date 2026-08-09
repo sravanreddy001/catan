@@ -1446,13 +1446,15 @@ body {
 }
 
 .lobby__counts {
-  display: flex;
-  gap: 10px;
+  /* Seven options do not fit on one phone-width row; auto-fit wraps them into
+     as many rows as it takes without the cards changing shape. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 8px;
   width: 100%;
 }
 
 .lobby__count-card {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;

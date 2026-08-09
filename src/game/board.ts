@@ -36,27 +36,124 @@ export interface Edge {
 export const HEX_SIZE = 56
 const SQRT3 = Math.sqrt(3)
 
-/** Axial coords of the 19 tiles, rows of 3-4-5-4-3. */
-const TILE_COORDS: Array<[number, number]> = [
-  [0, -2], [1, -2], [2, -2],
-  [-1, -1], [0, -1], [1, -1], [2, -1],
-  [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0],
-  [-2, 1], [-1, 1], [0, 1], [1, 1],
-  [-2, 2], [-1, 2], [0, 2],
-]
+/**
+ * Rings of hexes around the centre. 2 gives the standard 19-tile board (rows
+ * of 3-4-5-4-3, the exact layout this file used to hardcode); 3 gives the
+ * 37-tile board the 5-8 player game needs. Anything else follows the same
+ * rule, so board size is one number rather than a new coordinate table.
+ */
+export function ringCoords(rings: number): Array<[number, number]> {
+  const out: Array<[number, number]> = []
+  for (let r = -rings; r <= rings; r++) {
+    for (let q = Math.max(-rings, -rings - r); q <= Math.min(rings, rings - r); q++) {
+      out.push([q, r])
+    }
+  }
+  return out
+}
 
-/** Standard tile distribution. */
-const TILE_TYPES: TileType[] = [
-  ...Array<TileType>(4).fill('lumber'),
-  ...Array<TileType>(4).fill('wool'),
-  ...Array<TileType>(4).fill('grain'),
-  ...Array<TileType>(3).fill('brick'),
-  ...Array<TileType>(3).fill('ore'),
-  'desert',
-]
+/** Rings for a given player count: 5 or more need the wider board. */
+export function ringsForPlayers(playerCount: number): number {
+  return playerCount > 4 ? 3 : 2
+}
 
-/** Standard number tokens (no 7). Placed on non-desert tiles. */
+/**
+ * The standard 4:4:4:3:3 lumber/wool/grain/brick/ore mix with one desert per
+ * 19 tiles, scaled to any tile count. Reproduces the standard board exactly at
+ * 19 tiles; larger boards keep the same ratios rather than inventing a mix.
+ */
+export function tileDistribution(count: number): TileType[] {
+  const deserts = Math.max(1, Math.round(count / 19))
+  const resourceCount = count - deserts
+  const weights: Array<[Resource, number]> = [
+    ['lumber', 4],
+    ['wool', 4],
+    ['grain', 4],
+    ['brick', 3],
+    ['ore', 3],
+  ]
+  const totalWeight = weights.reduce((sum, [, w]) => sum + w, 0)
+
+  const out: TileType[] = []
+  for (const [res, w] of weights) {
+    for (let i = 0; i < Math.floor((resourceCount * w) / totalWeight); i++) out.push(res)
+  }
+  // Rounding down above can leave a few tiles unassigned; hand those out in
+  // weight order so the shortfall lands on the commonest resources first.
+  let i = 0
+  while (out.length < resourceCount) out.push(weights[i++ % weights.length][0])
+  for (let d = 0; d < deserts; d++) out.push('desert')
+  return out
+}
+
+/** Standard number tokens (no 7), for the 18 numbered tiles of a 19-tile board. */
 const NUMBER_TOKENS = [5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11]
+
+/**
+ * Enough tokens for `count` numbered tiles, keeping the standard board's
+ * frequency curve: one 2 and one 12 per 18 tiles, two of everything else.
+ */
+export function numberTokens(count: number): number[] {
+  if (count === NUMBER_TOKENS.length) return NUMBER_TOKENS.slice()
+  const out: number[] = []
+  const middles = [3, 4, 5, 6, 8, 9, 10, 11]
+  while (out.length < count) {
+    out.push(2)
+    for (const n of middles) {
+      if (out.length < count) out.push(n)
+      if (out.length < count) out.push(n)
+    }
+    if (out.length < count) out.push(12)
+  }
+  return out.slice(0, count)
+}
+
+/** Axial neighbours of a hex, in the same pointy-top frame as `hexCenter`. */
+const HEX_NEIGHBOURS: Array<[number, number]> = [
+  [1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1],
+]
+
+/**
+ * Deal numbers onto tiles without putting two red numbers (6 or 8) side by
+ * side — the constraint the hardcoded token order used to satisfy by hand.
+ * Swap-based rather than reshuffle-based so it always terminates: a clash
+ * swaps with a random safe tile, and after a bounded number of passes any
+ * remaining clash is accepted instead of looping forever.
+ */
+function placeNumbers(
+  coords: Array<[number, number]>,
+  types: TileType[],
+  rand: () => number,
+): Array<number | undefined> {
+  const numbered = coords.map((_, i) => i).filter((i) => types[i] !== 'desert')
+  const tokens = shuffle(numberTokens(numbered.length), rand)
+  const assigned: Array<number | undefined> = coords.map(() => undefined)
+  numbered.forEach((tileIndex, n) => (assigned[tileIndex] = tokens[n]))
+
+  const indexOf = new Map(coords.map(([q, r], i) => [`${q},${r}`, i]))
+  const isRed = (n: number | undefined) => n === 6 || n === 8
+  const neighbours = (i: number) =>
+    HEX_NEIGHBOURS.map(([dq, dr]) => indexOf.get(`${coords[i][0] + dq},${coords[i][1] + dr}`)).filter(
+      (x): x is number => x !== undefined,
+    )
+
+  for (let pass = 0; pass < 12; pass++) {
+    let clashes = 0
+    for (const i of numbered) {
+      if (!isRed(assigned[i])) continue
+      if (!neighbours(i).some((j) => isRed(assigned[j]))) continue
+      clashes++
+      const swappable = numbered.filter(
+        (j) => !isRed(assigned[j]) && !neighbours(j).some((k) => isRed(assigned[k])),
+      )
+      if (swappable.length === 0) break
+      const j = swappable[Math.floor(rand() * swappable.length)]
+      ;[assigned[i], assigned[j]] = [assigned[j], assigned[i]]
+    }
+    if (clashes === 0) break
+  }
+  return assigned
+}
 
 export function hexCenter(q: number, r: number): { cx: number; cy: number } {
   return {
@@ -130,7 +227,14 @@ function buildPorts(
     .sort((a, b) => a.angle - b.angle)
     .map((x) => x.e)
 
-  const types = shuffle(PORT_TYPES, rand)
+  // One harbour per ~3.3 coastal edges — the standard board's density (9 ports
+  // around 30 edges). A wider board repeats the same mix rather than leaving
+  // the extra coastline bare, which would make ports a lottery of who spawned
+  // near the old ring.
+  const wanted = Math.max(PORT_TYPES.length, Math.round(coastal.length / (30 / PORT_TYPES.length)))
+  const pool: Array<Resource | 'any'> = []
+  while (pool.length < wanted) pool.push(...PORT_TYPES)
+  const types = shuffle(pool, rand).slice(0, wanted)
   const step = coastal.length / types.length
   const offset = Math.floor(rand() * coastal.length)
 
@@ -151,20 +255,19 @@ function buildPorts(
   return ports
 }
 
-export function createBoard(rand: () => number = Math.random): Board {
-  const types = shuffle(TILE_TYPES, rand)
-  const numbers = NUMBER_TOKENS.slice()
-  let numberIndex = 0
+export function createBoard(rand: () => number = Math.random, rings = 2): Board {
+  const coords = ringCoords(rings)
+  const types = shuffle(tileDistribution(coords.length), rand)
+  const numbers = placeNumbers(coords, types, rand)
 
-  const tiles: Tile[] = TILE_COORDS.map(([q, r], i) => {
+  const tiles: Tile[] = coords.map(([q, r], i) => {
     const { cx, cy } = hexCenter(q, r)
-    const type = types[i]
     return {
       id: `t${q},${r}`,
       q,
       r,
-      type,
-      number: type === 'desert' ? undefined : numbers[numberIndex++],
+      type: types[i],
+      number: numbers[i],
       cx,
       cy,
     }

@@ -1,6 +1,7 @@
 import type { Resource } from './board'
 
-export type PlayerId = 0 | 1 | 2 | 3
+/** Seats. 0-3 is the standard game; 4-7 exist only on the wider 5-8 board. */
+export type PlayerId = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 export type DevKind =
   | 'knight'
@@ -124,6 +125,12 @@ export const PALETTE: Array<{ name: string; color: string; dark: string }> = [
   { name: 'Blue', color: '#3d7fd6', dark: '#1c4682' },
   { name: 'Orange', color: '#ef8b34', dark: '#96500f' },
   { name: 'White', color: '#f2ede4', dark: '#8d8578' },
+  // Seats 5-8. Picked to stay apart from the first four and from each other on
+  // the board's greens and blues, and to hold up as a small road stroke.
+  { name: 'Green', color: '#4aa863', dark: '#1f5e30' },
+  { name: 'Purple', color: '#9b6bd6', dark: '#4c2c7e' },
+  { name: 'Teal', color: '#3fb3ad', dark: '#155f5b' },
+  { name: 'Pink', color: '#e2699f', dark: '#8b2f5c' },
 ]
 
 /** `colorIndices[i]` picks player i's swatch from PALETTE; defaults to palette order. */
