@@ -156,41 +156,58 @@ export function createPlayers(count = 4, colorIndices?: number[]): Player[] {
 }
 
 /**
- * 25-card development deck, shuffled.
+ * Development deck, shuffled. 25 cards at four players or fewer.
  *
  * `extraKinds` swaps the standard 14/5/2/2/2 for the expanded composition:
  * knights drop to 7 so Largest Army stays reachable but becomes a race, and
  * the four new kinds take 9 of the 25 slots — Merit carries 4 of those, enough
  * that a game actually sees one. `noRobber` (Santa mode) drops Diplomat — it
  * shields against a steal that mode has removed — and gives its slot back to
- * the knights. Either way the deck is exactly 25 cards.
+ * the knights.
+ *
+ * `playerCount` above four scales the whole composition by `playerCount / 4`,
+ * the same rule the bank uses. A fixed 25-card deck shared by eight players is
+ * a scarce deck by accident: it empties around the midgame and spreads the same
+ * few victory cards over twice as many people. Scaling every kind by one factor
+ * holds *per-player* availability constant, so an eight-player game draws at the
+ * rate a four-player game does. The physical 5-6 player extension scales victory
+ * cards more gently than this (5 to 6, not 5 to 8), but it also fixes the target
+ * at 10; ours goes to 12, and those points have to come from somewhere.
  */
 export function createDevDeck(
   rand: () => number = Math.random,
   extraKinds = false,
   noRobber = false,
+  playerCount = 4,
 ): DevKind[] {
-  if (extraKinds) {
-    const deck: DevKind[] = [
-      ...Array<DevKind>(noRobber ? 8 : 7).fill('knight'),
-      ...Array<DevKind>(3).fill('victory'),
-      ...Array<DevKind>(2).fill('roadBuilding'),
-      ...Array<DevKind>(2).fill('monopoly'),
-      ...Array<DevKind>(2).fill('plenty'),
-      ...Array<DevKind>(2).fill('merchant'),
-      ...Array<DevKind>(2).fill('trailblazer'),
-      ...Array<DevKind>(noRobber ? 0 : 1).fill('diplomat'),
-      ...Array<DevKind>(4).fill('merit'),
-    ]
-    return shuffle(deck, rand)
+  const composition: Array<[DevKind, number]> = extraKinds
+    ? [
+        ['knight', noRobber ? 8 : 7],
+        ['victory', 3],
+        ['roadBuilding', 2],
+        ['monopoly', 2],
+        ['plenty', 2],
+        ['merchant', 2],
+        ['trailblazer', 2],
+        ['diplomat', noRobber ? 0 : 1],
+        ['merit', 4],
+      ]
+    : [
+        ['knight', 14],
+        ['victory', 5],
+        ['roadBuilding', 2],
+        ['monopoly', 2],
+        ['plenty', 2],
+      ]
+
+  const scale = playerCount > 4 ? playerCount / 4 : 1
+  const deck: DevKind[] = []
+  for (const [kind, count] of composition) {
+    // A kind that is deliberately absent stays absent; one that exists never
+    // rounds away to nothing.
+    const scaled = count === 0 ? 0 : Math.max(1, Math.round(count * scale))
+    for (let i = 0; i < scaled; i++) deck.push(kind)
   }
-  const deck: DevKind[] = [
-    ...Array<DevKind>(14).fill('knight'),
-    ...Array<DevKind>(5).fill('victory'),
-    ...Array<DevKind>(2).fill('roadBuilding'),
-    ...Array<DevKind>(2).fill('monopoly'),
-    ...Array<DevKind>(2).fill('plenty'),
-  ]
   return shuffle(deck, rand)
 }
 

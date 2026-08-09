@@ -225,7 +225,12 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     message: `${players[order[0]].name}: place your first settlement.`,
     offer: null,
     offersMade: 0,
-    deck: createDevDeck(Math.random, finalSettings.newDevCards, finalSettings.santaMode),
+    deck: createDevDeck(
+      Math.random,
+      finalSettings.newDevCards,
+      finalSettings.santaMode,
+      playerCount,
+    ),
     playedDev: false,
     freeRoads: 0,
     picking: null,
