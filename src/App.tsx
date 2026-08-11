@@ -417,6 +417,8 @@ export default function App() {
   const largestArmy = largestArmyHolder(state.players)
   const longestRoad = longestRoadHolder(state.board, state.players)
   const winner = state.winner !== null ? state.players[state.winner] : null
+  /** Turn order, not seat id order — the strip should read the way play goes around the table. */
+  const orderedPlayers = state.order.map((id) => state.players[id])
   /** Offline hot-seat: the device always controls the active player. */
   const myTurn = seat === null || seat === currentId
   const offerResponders = state.offer
@@ -465,7 +467,7 @@ export default function App() {
           <h1 className="topbar__title">Catan</h1>
         </div>
         <PlayerStrip
-          players={state.players}
+          players={orderedPlayers}
           current={currentId}
           largestArmy={largestArmy}
           longestRoad={longestRoad}
