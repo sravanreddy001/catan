@@ -797,6 +797,15 @@ body {
   outline: 2px solid #ffd977;
 }
 
+.swap__have {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .swap__rate {
   font-size: 10px;
   color: var(--muted);
@@ -1276,6 +1285,17 @@ body {
 
 /* The answer window on a bot's offer. Deliberately quiet — it is a deadline,
    not an alarm, and must not pull the eye off the two baskets below it. */
+.offer__answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.offer__answers .btn {
+  flex: 1 1 120px;
+}
+
 .offer__clock {
   margin: 0 0 10px;
   font-size: 12px;
@@ -1523,11 +1543,14 @@ body {
 
 .lobby__colors {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
 }
 
 .lobby__swatch {
+  /* Never let a wide palette squeeze the circles into ovals: they wrap. */
+  flex: 0 0 auto;
   width: 40px;
   height: 40px;
   border-radius: 50%;

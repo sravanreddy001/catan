@@ -39,6 +39,7 @@ import { chooseAction, chooseDiscard, respondToEnd, respondToOffer, type AIPrese
 import {
   PALETTE,
   canAffordDev,
+  hasCards,
   largestArmyHolder,
   scoreBreakdown,
   victoryPoints,
@@ -85,7 +86,7 @@ function actorMayDispatch(state: GameState, action: Action, fromSeat: number): b
 }
 
 /** How long a human gets to answer a bot's trade offer before it passes. */
-const OFFER_ANSWER_SECONDS = 20
+const OFFER_ANSWER_SECONDS = 7
 
 export default function App() {
   const [stage, setStage] = useState<Stage>({ kind: 'lobby' })
@@ -424,7 +425,8 @@ export default function App() {
         .filter(
           (i) =>
             (state.offer!.to === 'any' ? i !== state.offer!.from : i === state.offer!.to) &&
-            !state.offer!.declinedBy.includes(i as PlayerId),
+            !state.offer!.declinedBy.includes(i as PlayerId) &&
+            hasCards(state.players[i], state.offer!.want),
         )
     : []
   const humanCanAnswerOffer = offerResponders.some((s) => !(s in botPresets))
@@ -596,6 +598,7 @@ export default function App() {
         <ResourcePicker
           title="Year of plenty"
           hint={`Take ${state.plentyLeft} more from the bank.`}
+          counts={state.players[viewerSeat].hand}
           onPick={(res) => dispatch({ type: 'plenty', res })}
         />
       )}

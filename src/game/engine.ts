@@ -1105,17 +1105,48 @@ function step(state: GameState, action: Action): GameState {
     case 'merchantCancel':
       return state.merchant ? { ...state, merchant: null, message: 'Merchant swap cancelled.' } : state
 
-    case 'propose':
+    case 'propose': {
+      const offer = action.offer
+      const eligibleResponders = state.players
+        .map((p) => p.id)
+        .filter((id) => (offer.to === 'any' ? id !== offer.from : id === offer.to))
+
+      const autoDeclined = eligibleResponders.filter(
+        (id) => !hasCards(state.players[id], offer.want),
+      )
+
+      if (autoDeclined.length > 0) {
+        const declinedBy = [...new Set([...offer.declinedBy, ...autoDeclined])]
+        const allDeclined = eligibleResponders.every((id) => declinedBy.includes(id))
+        if (allDeclined) {
+          return {
+            ...state,
+            offer: null,
+            offersMade: (state.offersMade ?? 0) + 1,
+            message: 'Offer declined — requested cards unavailable.',
+          }
+        }
+        return {
+          ...state,
+          offer: { ...offer, declinedBy },
+          offersMade: (state.offersMade ?? 0) + 1,
+          message: 'Trade offered — waiting on a response.',
+        }
+      }
+
       return {
         ...state,
-        offer: action.offer,
+        offer,
         offersMade: (state.offersMade ?? 0) + 1,
         message: 'Trade offered — waiting on a response.',
       }
+    }
 
     case 'acceptOffer': {
       if (!state.offer) return state
-      const name = state.players.find((p) => p.id === action.responder)!.name
+      const responderPlayer = state.players.find((p) => p.id === action.responder)
+      if (!responderPlayer || !hasCards(responderPlayer, state.offer.want)) return state
+      const name = responderPlayer.name
       return {
         ...state,
         players: applyTrade(

@@ -748,11 +748,14 @@ export function MerchantPanel({
 export function ResourcePicker({
   title,
   hint,
+  counts,
   onPick,
   onCancel,
 }: {
   title: string
   hint?: string
+  /** Your own hand, shown on each swatch so the pick is an informed one. */
+  counts?: Record<Resource, number>
   onPick: (r: Resource) => void
   onCancel?: () => void
 }) {
@@ -774,9 +777,11 @@ export function ResourcePicker({
           {RESOURCES.map((r) => (
             <button key={r} className="swap" onClick={() => onPick(r)}>
               <span>{RESOURCE_ICON[r]}</span>
+              {counts && <span className="swap__have">{counts[r]}</span>}
             </button>
           ))}
         </div>
+        {counts && <p className="lobby__hint">Numbers are the cards you already hold.</p>}
         {onCancel && (
           <button className="btn" onClick={onCancel}>
             Cancel
@@ -1127,6 +1132,7 @@ export function OfferResponse({ offer, players, answerable, secondsLeft, onAccep
     (p) =>
       (offer.to === 'any' ? p.id !== offer.from : p.id === offer.to) &&
       !offer.declinedBy.includes(p.id) &&
+      hasCards(p, offer.want) &&
       (answerable === undefined || answerable.includes(p.id)),
   )
 
@@ -1154,7 +1160,9 @@ export function OfferResponse({ offer, players, answerable, secondsLeft, onAccep
           ))}
         </div>
 
-        <div className="offer__responders">
+        {/* Accept(s) and decline share one row — a bot's offer runs on a clock,
+            so the answer must be one glance wide, not a stack. */}
+        <div className="offer__answers">
           {responders.map((p) => {
             const able = hasCards(p, offer.want)
             return (
@@ -1171,10 +1179,10 @@ export function OfferResponse({ offer, players, answerable, secondsLeft, onAccep
               </button>
             )
           })}
+          <button className="btn" onClick={onDecline}>
+            Decline
+          </button>
         </div>
-        <button className="btn" onClick={onDecline}>
-          Decline
-        </button>
       </div>
     </div>
   )
