@@ -878,12 +878,29 @@ function totalCount(b: Bundle): number {
   return Object.values(b).reduce<number>((sum, n) => sum + (n ?? 0), 0)
 }
 
-function ReadonlyCell({ icon, n, tone }: { icon: string; n: number; tone: 'want' | 'give' }) {
+function ReadonlyCell({
+  icon,
+  n,
+  tone,
+  held,
+}: {
+  icon: string
+  n: number
+  tone: 'want' | 'give'
+  /** Cards the responder currently holds of this resource — shown so they can judge the ask. */
+  held?: number
+}) {
   const filled = n > 0
+  const short = held !== undefined && held < n
   return (
-    <div className={`trade-cell trade-cell--${tone} ${filled ? 'trade-cell--filled' : 'trade-cell--empty'}`}>
+    <div
+      className={`trade-cell trade-cell--${tone} ${filled ? 'trade-cell--filled' : 'trade-cell--empty'}${held !== undefined ? ' trade-cell--stacked' : ''}`}
+    >
       <span className="trade-cell__icon">{icon}</span>
       {filled && <span className="trade-cell__count">&times;{n}</span>}
+      {held !== undefined && (
+        <span className={`trade-cell__held${short ? ' trade-cell__held--short' : ''}`}>have {held}</span>
+      )}
     </div>
   )
 }
@@ -1135,6 +1152,10 @@ export function OfferResponse({ offer, players, answerable, secondsLeft, onAccep
       hasCards(p, offer.want) &&
       (answerable === undefined || answerable.includes(p.id)),
   )
+  // Based on `answerable`, not `responders`: a hand short on the asked
+  // resource is filtered out of `responders` entirely, but that is exactly
+  // the case where seeing the shortfall matters most.
+  const you = answerable?.length === 1 ? players.find((p) => p.id === answerable[0]) : undefined
 
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="offer-response-title">
@@ -1156,7 +1177,13 @@ export function OfferResponse({ offer, players, answerable, secondsLeft, onAccep
         <span className="trade-eyebrow trade-eyebrow--give">You&apos;d give</span>
         <div className="trade-grid">
           {RESOURCES.map((r) => (
-            <ReadonlyCell key={r} icon={RESOURCE_ICON[r]} n={offer.want[r] ?? 0} tone="give" />
+            <ReadonlyCell
+              key={r}
+              icon={RESOURCE_ICON[r]}
+              n={offer.want[r] ?? 0}
+              tone="give"
+              held={you?.hand[r]}
+            />
           ))}
         </div>
 

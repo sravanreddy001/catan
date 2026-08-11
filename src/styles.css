@@ -1138,6 +1138,23 @@ body {
   opacity: 0.35;
 }
 
+.trade-cell--stacked {
+  flex-direction: column;
+  gap: 1px;
+  min-height: 46px;
+  padding: 4px 0;
+}
+
+.trade-cell__held {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.trade-cell__held--short {
+  color: #ff8a8a;
+  font-weight: 600;
+}
+
 .trade-reopen {
   position: fixed;
   top: calc(env(safe-area-inset-top) + 54px);
