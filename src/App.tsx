@@ -545,18 +545,20 @@ export default function App() {
                   )
                 })}
             </ul>
-            <button className="btn btn--ghost" onClick={() => setShowBreakdown((v) => !v)}>
-              {showBreakdown ? 'Hide' : 'Show'} how scores add up
-            </button>
-            <button
-              className="btn btn--primary"
-              onClick={() => {
-                clearSaved()
-                leave()
-              }}
-            >
-              New game
-            </button>
+            <div className="modal__actions">
+              <button className="btn btn--ghost" onClick={() => setShowBreakdown((v) => !v)}>
+                {showBreakdown ? 'Hide' : 'Show'} how scores add up
+              </button>
+              <button
+                className="btn btn--primary"
+                onClick={() => {
+                  clearSaved()
+                  leave()
+                }}
+              >
+                New game
+              </button>
+            </div>
           </div>
         </div>
       )}
