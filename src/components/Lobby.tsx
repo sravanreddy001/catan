@@ -4,6 +4,30 @@ import type { AIPreset } from '../game/ai'
 import { PALETTE } from '../game/players'
 import { joinUrl } from '../net/session'
 
+const PREFS_KEY = 'catan.lobbyPrefs.v1'
+
+interface LobbyPrefs {
+  color: number
+  opponents: number
+}
+
+function loadPrefs(): LobbyPrefs | null {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    return raw ? (JSON.parse(raw) as LobbyPrefs) : null
+  } catch {
+    return null
+  }
+}
+
+function savePrefs(prefs: LobbyPrefs) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+  } catch {
+    // Storage can be unavailable (private mode, quota) — losing the pref isn't fatal.
+  }
+}
+
 interface Props {
   /** Prefilled when the page was opened from a share link. */
   initialCode: string | null
@@ -239,8 +263,9 @@ export default function Lobby({
   const [screen, setScreen] = useState<Screen>(initialCode ? 'online' : 'offline')
   const [name, setName] = useState('')
   const [code, setCode] = useState(initialCode ?? '')
-  const [color, setColor] = useState(0)
-  const [opponents, setOpponents] = useState(1)
+  const savedPrefs = loadPrefs()
+  const [color, setColor] = useState(savedPrefs?.color ?? 0)
+  const [opponents, setOpponents] = useState(savedPrefs?.opponents ?? 1)
   const [vpTarget, setVpTarget] = useState(10)
   const [publicHands, setPublicHands] = useState(false)
   const [bankPreset, setBankPreset] = useState<'standard' | 'scarce' | 'veryScarce'>('standard')
@@ -252,6 +277,10 @@ export default function Lobby({
   const [botPresets, setBotPresets] = useState<Record<number, AIPreset>>({})
 
   const settings = { publicHands, vpTarget, bankPreset, santaMode, speedMode, newDevCards, draftDevCards, endless }
+
+  useEffect(() => {
+    savePrefs({ color, opponents })
+  }, [color, opponents])
 
   /** Seats 1..opponents; a seat with no explicit pick plays the default. */
   function presetsForStart(): Record<number, AIPreset> {

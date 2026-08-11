@@ -10,6 +10,7 @@ import {
   currentPlayerId,
   edgeTargets,
   ratesFor,
+  swapSignature,
   vertexTargets,
   type Action,
   type GameState,
@@ -277,16 +278,18 @@ function proposeSwap(state: GameState, seat: number, preset: AIPreset = null): A
   const give = best(spare, (res) => me.hand[res])
   if (!give) return null
 
-  return {
-    type: 'propose',
-    offer: {
-      from: seat as PlayerId,
-      to: 'any',
-      give: { [give]: 1 },
-      want: { [wanted]: 1 },
-      declinedBy: [],
-    },
+  const offer = {
+    from: seat as PlayerId,
+    to: 'any' as const,
+    give: { [give]: 1 },
+    want: { [wanted]: 1 },
+    declinedBy: [],
   }
+  // Nothing changed hands since the table turned this exact swap down —
+  // asking again verbatim would just get declined again.
+  if ((state.rejectedSwaps ?? []).includes(swapSignature(offer))) return null
+
+  return { type: 'propose', offer }
 }
 
 /**

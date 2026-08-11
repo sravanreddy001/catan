@@ -116,6 +116,12 @@ export interface GameState {
    * rejected swap on every tick and never end its turn.
    */
   offersMade: number
+  /**
+   * Signatures (`give:want`) of offers everyone declined this turn. Without
+   * this a bot re-proposing after a refusal sees the same hand it started
+   * with and puts forward the identical swap again.
+   */
+  rejectedSwaps: string[]
   deck: DevKind[]
   playedDev: boolean
   /** Free roads owed by a road-building card. */
@@ -241,6 +247,7 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     message: `${players[order[0]].name}: place your first settlement.`,
     offer: null,
     offersMade: 0,
+    rejectedSwaps: [],
     endVote: null,
     deck: createDevDeck(
       Math.random,
@@ -664,6 +671,17 @@ export function reduce(state: GameState, action: Action): GameState {
   return champion
     ? { ...next, winner: champion.id, message: `${champion.name} wins!` }
     : next
+}
+
+/** Identifies a give/want swap regardless of who proposed it, for dedup purposes. */
+export function swapSignature(offer: TradeOffer): string {
+  const part = (bundle: TradeOffer['give']) =>
+    Object.entries(bundle)
+      .filter(([, n]) => n)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([res, n]) => `${res}${n}`)
+      .join(',')
+  return `${part(offer.give)}:${part(offer.want)}`
 }
 
 function step(state: GameState, action: Action): GameState {
@@ -1123,6 +1141,7 @@ function step(state: GameState, action: Action): GameState {
             ...state,
             offer: null,
             offersMade: (state.offersMade ?? 0) + 1,
+            rejectedSwaps: [...(state.rejectedSwaps ?? []), swapSignature(offer)],
             message: 'Offer declined — requested cards unavailable.',
           }
         }
@@ -1171,7 +1190,12 @@ function step(state: GameState, action: Action): GameState {
       const others = state.players.filter((p) => p.id !== state.offer!.from).map((p) => p.id)
       const allDeclined = others.every((id) => decliners.includes(id))
       return allDeclined
-        ? { ...state, offer: null, message: 'Offer declined.' }
+        ? {
+            ...state,
+            offer: null,
+            rejectedSwaps: [...(state.rejectedSwaps ?? []), swapSignature(state.offer)],
+            message: 'Offer declined.',
+          }
         : { ...state, offer: { ...state.offer, declinedBy: decliners } }
     }
 
@@ -1236,6 +1260,7 @@ function step(state: GameState, action: Action): GameState {
         rollCount: 0,
         offer: null,
         offersMade: 0,
+        rejectedSwaps: [],
         // An unresolved vote does not carry into someone else's turn.
         endVote: null,
         message: `${state.players[nextId].name} to roll.`,
