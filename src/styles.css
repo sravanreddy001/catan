@@ -306,6 +306,32 @@ body {
   cursor: pointer;
 }
 
+/* Upgrade target: a gold ring around your own settlement, matching the ring on
+   an empty build spot, so "which one can I click" is answered on the board. */
+.piece__halo {
+  fill: rgba(255, 217, 119, 0.14);
+  stroke: #ffd977;
+  stroke-width: 3.5;
+  animation: halo-pulse 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Its own keyframes: the shared `pulse` bottoms out at 0.175 opacity, which
+   left the ring nearly invisible against a lit tile for half its cycle. */
+@keyframes halo-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.piece__hit {
+  cursor: pointer;
+}
+
 /*
  * Both ends are halved rather than just the peak: keeping the trough where it
  * was would flatten the pulse to almost nothing. Halving both holds the same
@@ -323,7 +349,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .spot--target,
-  .road--target {
+  .road--target,
+  .piece__halo {
     animation: none;
   }
 }
@@ -344,6 +371,46 @@ body {
   flex-direction: column;
   gap: 10px;
   justify-content: flex-start;
+}
+
+/*
+ * Robber lock: after a 7 (or a Knight) every action in the dock is disabled
+ * until the robber is placed, and a wall of dim buttons never said why.
+ * Hovering or focusing anywhere in the dock now names the blocker.
+ */
+.dock--locked {
+  position: relative;
+}
+
+.dock--locked::after {
+  content: attr(data-lock-hint);
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  transform: translate(-50%, -6px);
+  background: #1a1a1f;
+  color: #ffd977;
+  border: 1px solid #ffd977;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  z-index: 6;
+}
+
+.dock--locked:hover::after,
+.dock--locked:focus-within::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock--locked::after {
+    transition: none;
+  }
 }
 
 /* Resources left, development cards right — one row for "what have I got". */

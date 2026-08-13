@@ -731,7 +731,14 @@ export default function App() {
             <span className="status">{winner ? `${winner.name} wins!` : state.message}</span>
           </div>
 
-          <footer className="dock">
+          {/*
+            Robber pending: every dock control is disabled, so say why on hover
+            rather than leaving a row of dim buttons unexplained.
+          */}
+          <footer
+            className={`dock${myTurn && state.mode === 'robber' ? ' dock--locked' : ''}`}
+            data-lock-hint="Move the robber first"
+          >
             {/*
               Row 1 — what you hold. Resources on the left, development cards on
               the right, so one glance at one row answers "what have I got".

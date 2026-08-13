@@ -302,6 +302,16 @@ export default function Board({
                 target ? ' — upgrade to a city' : ''
               }`}
             >
+              {/* Upgrade targets get the same gold ring an empty build spot
+                  gets, plus a generous transparent hit circle — otherwise
+                  picking "City" lit nothing and you had to guess which of your
+                  settlements was clickable. */}
+              {target && (
+                <>
+                  <circle className="piece__halo" cx={v.x} cy={v.y} r={24} />
+                  <circle className="piece__hit" cx={v.x} cy={v.y} r={30} fill="transparent" />
+                </>
+              )}
               {/* Settlement reads as a small house, city as a larger house with
                   an adjoining block, so the two differ in silhouette and size
                   rather than colour alone. */}
