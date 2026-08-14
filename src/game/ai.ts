@@ -19,7 +19,6 @@ import {
   COSTS,
   canAfford,
   canAffordDev,
-  randomDiscard,
   victoryPoints,
   type DevKind,
   type Player,
@@ -69,9 +68,9 @@ function getPresetConfig(preset: AIPreset): PresetConfig {
   // Default (no preset)
   return {
     diversityBonus: 2.5,
-    hitsLeaderBonus: 12,
+    hitsLeaderBonus: 16,
     tradeThreshold: 1,
-    offerAcceptMultiplier: 1,
+    offerAcceptMultiplier: 0.9,
     cityPreference: 1,
   }
 }
@@ -440,7 +439,7 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
     return { type: 'setMode', mode: 'city' }
   }
 
-  if (canAffordDev(me) && state.deck.length > 0 && handTotal(me) >= 4) return { type: 'buyDev' }
+  if (canAffordDev(me) && state.deck.length > 0 && handTotal(me) >= 3) return { type: 'buyDev' }
   if (canAfford(me, 'road') && me.roads.length < PIECE_LIMITS.roads && targetsFor(state, 'road').length > 0) {
     return { type: 'setMode', mode: 'road' }
   }
@@ -455,11 +454,35 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
   return null
 }
 
-/** A bot always discards a random legal bundle when forced to. */
+/**
+ * Discard from surplus first: whatever the current build goal does not need,
+ * ranked by how much of it is held. Falls back to a random legal bundle once
+ * every resource is needed, so it can never get stuck short.
+ */
 export function chooseDiscard(state: GameState, seat: number, _preset: AIPreset = null): Partial<Record<Resource, number>> {
   const owed = state.discards[seat as PlayerId]
   if (!owed) return {}
-  return randomDiscard(state.players[seat], owed)
+  const me = state.players[seat]
+  const goal = me.settlements.length > 0 && me.cities.length < 4 ? 'city' : 'settlement'
+  const need = missingFor(me, goal)
+
+  const pool: Resource[] = []
+  for (const [res, n] of Object.entries(me.hand)) {
+    for (let i = 0; i < n; i++) pool.push(res as Resource)
+  }
+  pool.sort((a, b) => {
+    const aNeeded = need[a] ? 1 : 0
+    const bNeeded = need[b] ? 1 : 0
+    if (aNeeded !== bNeeded) return aNeeded - bNeeded // unneeded first
+    return me.hand[b] - me.hand[a] // then biggest surplus first
+  })
+
+  const bundle: Partial<Record<Resource, number>> = {}
+  for (let i = 0; i < owed && pool.length > 0; i++) {
+    const card = pool.shift()!
+    bundle[card] = (bundle[card] ?? 0) + 1
+  }
+  return bundle
 }
 
 /**

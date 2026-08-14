@@ -522,8 +522,18 @@ export default function App() {
                     <li key={p.id} className="seats__row">
                       <div className="seats__row-main">
                         {p.name}
+                        {breakdown.longestRoad && (
+                          <span className="seats__badge" title="Longest road">
+                            🛣️
+                          </span>
+                        )}
+                        {breakdown.largestArmy && (
+                          <span className="seats__badge" title="Largest army">
+                            ⚔️
+                          </span>
+                        )}
                         <small>
-                          {breakdown.total} VP · {p.cities.length} cities · {p.settlements.length}{' '}
+                          ⭐ {breakdown.total} VP · {p.cities.length} cities · {p.settlements.length}{' '}
                           settlements · {p.knights} knights
                         </small>
                       </div>
@@ -536,10 +546,10 @@ export default function App() {
                             Cities: {breakdown.cities} × 2 = {breakdown.cityPoints}
                           </li>
                           {breakdown.devCardPoints > 0 && (
-                            <li>Victory point cards: {breakdown.devCardPoints}</li>
+                            <li>⭐ Victory point cards: {breakdown.devCardPoints}</li>
                           )}
-                          {breakdown.largestArmy && <li>Largest army: 2</li>}
-                          {breakdown.longestRoad && <li>Longest road: 2</li>}
+                          {breakdown.largestArmy && <li>⚔️ Largest army: 2</li>}
+                          {breakdown.longestRoad && <li>🛣️ Longest road: 2</li>}
                           <li className="seats__breakdown-total">Total: {breakdown.total}</li>
                         </ul>
                       )}
@@ -793,6 +803,7 @@ export default function App() {
               player={viewed}
               canBuyDev={!devBusy && canAffordDev(viewed) && state.deck.length > 0}
               devDeckEmpty={state.deck.length === 0}
+              devDeckCount={state.deck.length}
               onBuyDev={() => dispatch({ type: 'buyDev' })}
               mode={state.mode}
               hasRolled={state.hasRolled}

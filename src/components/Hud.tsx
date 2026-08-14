@@ -1260,6 +1260,8 @@ interface ActionBarProps {
   canBuyDev: boolean
   /** Deck exhausted — the same permanent "none left" as a spent piece. */
   devDeckEmpty: boolean
+  /** Cards left in the development deck, shown as a bubble on the Buy button. */
+  devDeckCount: number
   onBuild: (kind: BuildKind) => void
   onBuyDev: () => void
   onRoll: () => void
@@ -1278,6 +1280,7 @@ export function ActionBar({
   onProposeEnd,
   canBuyDev,
   devDeckEmpty,
+  devDeckCount,
   onBuild,
   onBuyDev,
   onRoll,
@@ -1339,9 +1342,13 @@ export function ActionBar({
                 <div className="btn__build-header">
                   <span className="btn__piece">
                     <PieceIcon kind={k} color={player.color} dark={player.dark} />
-                    {spent && (
+                    {spent ? (
                       <span className="btn__spent-mark" aria-hidden="true">
                         🚫
+                      </span>
+                    ) : (
+                      <span className="btn__remaining" aria-hidden="true">
+                        {limits[k] - placed[k]}
                       </span>
                     )}
                   </span>
@@ -1370,9 +1377,13 @@ export function ActionBar({
             <div className="btn__build-header">
               <span className="btn__piece">
                 <span className="btn__buydev-icon">🃏</span>
-                {devDeckEmpty && (
+                {devDeckEmpty ? (
                   <span className="btn__spent-mark" aria-hidden="true">
                     🚫
+                  </span>
+                ) : (
+                  <span className="btn__remaining" aria-hidden="true">
+                    {devDeckCount}
                   </span>
                 )}
               </span>
