@@ -97,6 +97,9 @@ export interface GameState {
   bank: Record<Resource, number>
   /** Set once someone reaches the VP target; the game accepts no further moves. */
   winner: number | null
+  /** Sticky largest-army/longest-road holders — kept until strictly overtaken. */
+  armyHolder: PlayerId | null
+  roadHolder: PlayerId | null
   phase: 'setup' | 'play'
   setupIndex: number
   /** During setup a settlement must be followed by a road from that corner. */
@@ -235,6 +238,8 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
       ore: bankPerResource,
     },
     winner: null,
+    armyHolder: null,
+    roadHolder: null,
     phase: 'setup',
     setupIndex: 0,
     pendingRoadFrom: null,
@@ -506,8 +511,16 @@ function owedDiscards(players: Player[]): Partial<Record<PlayerId, number>> {
   return owed
 }
 
-/** Longest continuous road, ties or under 5 segments leave nobody holding it. */
-export function longestRoadHolder(board: Board, players: Player[]): PlayerId | null {
+/**
+ * Longest road: first player to reach 5+ segments holds it, and keeps it
+ * until another player strictly exceeds their length — a later tie does
+ * not take it away.
+ */
+export function longestRoadHolder(
+  board: Board,
+  players: Player[],
+  prevHolder: PlayerId | null = null,
+): PlayerId | null {
   const lengths = players.map((p) => {
     const blocked = new Set<string>()
     for (const other of players) {
@@ -517,6 +530,14 @@ export function longestRoadHolder(board: Board, players: Player[]): PlayerId | n
     }
     return { id: p.id, len: longestRoadLength(board, p.roads, blocked) }
   })
+  const prev = prevHolder !== null ? lengths.find((l) => l.id === prevHolder) : undefined
+  if (prev) {
+    const better = lengths.filter((l) => l.id !== prev.id && l.len > prev.len)
+    if (better.length === 0) return prev.id
+    const best = Math.max(...better.map((l) => l.len))
+    const leaders = better.filter((l) => l.len === best)
+    return leaders.length === 1 ? leaders[0].id : prev.id
+  }
   const best = Math.max(...lengths.map((l) => l.len))
   if (best < 5) return null
   const leaders = lengths.filter((l) => l.len === best)
@@ -632,8 +653,8 @@ function nothingLeftToDo(state: GameState): boolean {
 
 /** Highest score wins; ties go to longest road, then largest army, then seat order. */
 function leaderByScore(state: GameState): Player {
-  const largestArmy = largestArmyHolder(state.players)
-  const longestRoad = longestRoadHolder(state.board, state.players)
+  const largestArmy = state.armyHolder
+  const longestRoad = state.roadHolder
   return [...state.players].sort((a, b) => {
     const diff =
       victoryPointHalves(b, largestArmy, longestRoad) -
@@ -650,8 +671,14 @@ function leaderByScore(state: GameState): Player {
 export function reduce(state: GameState, action: Action): GameState {
   // Once won, the board is frozen: no further moves count.
   if (state.winner !== null) return state
-  const next = step(state, action)
+  let next = step(state, action)
   if (next === state) return state
+
+  const largestArmy = largestArmyHolder(next.players, next.armyHolder)
+  const longestRoad = longestRoadHolder(next.board, next.players, next.roadHolder)
+  if (largestArmy !== next.armyHolder || longestRoad !== next.roadHolder) {
+    next = { ...next, armyHolder: largestArmy, roadHolder: longestRoad }
+  }
 
   // Endless mode: the target never fires. The game ends when the board is
   // played out, or when the table has voted to stop (handled in `step`).
@@ -661,8 +688,6 @@ export function reduce(state: GameState, action: Action): GameState {
     return { ...next, winner: leader.id, message: `Nothing left to build — ${leader.name} wins on points.` }
   }
 
-  const largestArmy = largestArmyHolder(next.players)
-  const longestRoad = longestRoadHolder(next.board, next.players)
   // Compared in halves so a Merit's half-point can never round a player over
   // the line: 9.5 does not win a game played to 10.
   const champion = next.players.find(

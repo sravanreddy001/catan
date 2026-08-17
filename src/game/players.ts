@@ -243,10 +243,19 @@ export function randomDiscard(player: Player, owed: number): Partial<Record<Reso
 }
 
 /**
- * Largest army: three or more knights and strictly more than anyone else.
- * Returns null while it is tied or unclaimed.
+ * Largest army: first player to reach three or more knights holds it, and
+ * keeps it until another player strictly exceeds their knight count — a
+ * later tie at the same count does not take it away.
  */
-export function largestArmyHolder(players: Player[]): PlayerId | null {
+export function largestArmyHolder(players: Player[], prevHolder: PlayerId | null = null): PlayerId | null {
+  const prev = prevHolder !== null ? players.find((p) => p.id === prevHolder) : undefined
+  if (prev) {
+    const better = players.filter((p) => p.id !== prev.id && p.knights > prev.knights)
+    if (better.length === 0) return prev.id
+    const best = Math.max(...better.map((p) => p.knights))
+    const leaders = better.filter((p) => p.knights === best)
+    return leaders.length === 1 ? leaders[0].id : prev.id
+  }
   const best = Math.max(...players.map((p) => p.knights))
   if (best < 3) return null
   const leaders = players.filter((p) => p.knights === best)

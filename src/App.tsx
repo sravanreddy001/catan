@@ -27,7 +27,6 @@ import {
   currentPlayerId,
   defaultSettings,
   edgeTargets as edgeTargetsOf,
-  longestRoadHolder,
   ratesFor,
   reduce,
   vertexTargets as vertexTargetsOf,
@@ -40,7 +39,6 @@ import {
   PALETTE,
   canAffordDev,
   hasCards,
-  largestArmyHolder,
   scoreBreakdown,
   victoryPoints,
   type BuildKind,
@@ -87,6 +85,9 @@ function actorMayDispatch(state: GameState, action: Action, fromSeat: number): b
 
 /** How long a human gets to answer a bot's trade offer before it passes. */
 const OFFER_ANSWER_SECONDS = 7
+
+/** Short real names for AI opponents, 2-5 letters. */
+const BOT_NAMES = ['Ed', 'Bob', 'Dave', 'Amy', 'Sam', 'Zoe', 'Max', 'Liz', 'Jo', 'Tom']
 
 export default function App() {
   const [stage, setStage] = useState<Stage>({ kind: 'lobby' })
@@ -252,7 +253,8 @@ export default function App() {
 
   /** Offline is you (seat 0) against AI opponents in the remaining seats. */
   function startOffline(opponents: number, color: number, settings?: Partial<GameSettings>, presets?: Record<number, AIPreset>) {
-    const names = ['You', ...Array.from({ length: opponents }, (_, i) => `Bot ${i + 1}`)]
+    const shuffled = [...BOT_NAMES].sort(() => Math.random() - 0.5)
+    const names = ['You', ...shuffled.slice(0, opponents)]
     // Bots take the remaining palette colors, in order, skipping your pick.
     const remaining = PALETTE.map((_, i) => i).filter((i) => i !== color)
     const colors = [color, ...remaining.slice(0, opponents)]
@@ -414,8 +416,8 @@ export default function App() {
   const currentId = currentPlayerId(state)
   const current = state.players[currentId]
   const rates = ratesFor(state, currentId)
-  const largestArmy = largestArmyHolder(state.players)
-  const longestRoad = longestRoadHolder(state.board, state.players)
+  const largestArmy = state.armyHolder
+  const longestRoad = state.roadHolder
   const winner = state.winner !== null ? state.players[state.winner] : null
   /** Turn order, not seat id order — the strip should read the way play goes around the table. */
   const orderedPlayers = state.order.map((id) => state.players[id])

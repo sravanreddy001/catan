@@ -414,9 +414,9 @@ export default function Lobby({
           <div className="lobby__screen">
             <input
               className="field"
-              placeholder="Your name"
+              placeholder="Your name (2-5 letters)"
               value={name}
-              maxLength={12}
+              maxLength={5}
               autoFocus={!!initialCode}
               onChange={(e) => setName(e.target.value)}
             />
