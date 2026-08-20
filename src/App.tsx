@@ -109,6 +109,8 @@ export default function App() {
   const [botTick, setBotTick] = useState(0)
   /** Seconds left to answer a bot's offer; null when no clock is running. */
   const [offerClock, setOfferClock] = useState<number | null>(null)
+  /** Fast mode: bot decisions resolve near-instantly. Offers to the human still wait the full clock. */
+  const [fastMode, setFastMode] = useState(false)
 
   const host = useRef<HostSession | null>(null)
   const guest = useRef<GuestSession | null>(null)
@@ -159,9 +161,9 @@ export default function App() {
       const action = chooseAction(state, active, botPresets[active])
       dispatch(action ?? { type: 'endTurn' })
       setBotTick((t) => t + 1)
-    }, 700)
+    }, fastMode ? 30 : 700)
     return () => window.clearTimeout(timer)
-  }, [state, botPresets, botTick, dispatch])
+  }, [state, botPresets, botTick, dispatch, fastMode])
 
   // A bot discards on its own the moment a 7 leaves it owing cards.
   useEffect(() => {
@@ -172,9 +174,9 @@ export default function App() {
 
     const timer = window.setTimeout(() => {
       dispatch({ type: 'discard', playerId: seat as PlayerId, cards: chooseDiscard(state, seat, botPresets[seat]) })
-    }, 500)
+    }, fastMode ? 30 : 500)
     return () => window.clearTimeout(timer)
-  }, [state, botPresets, dispatch])
+  }, [state, botPresets, dispatch, fastMode])
 
   // A bot answers a trade offer pointed at it — one at a time, so an offer to
   // 'any' survives a bot's rejection as long as another responder is pending.
@@ -197,9 +199,9 @@ export default function App() {
           ? { type: 'acceptOffer', responder: taker as PlayerId }
           : { type: 'declineOffer', responder: responders[0] as PlayerId },
       )
-    }, 900)
+    }, fastMode ? 30 : 900)
     return () => window.clearTimeout(timer)
-  }, [state, botPresets, dispatch])
+  }, [state, botPresets, dispatch, fastMode])
 
   // Bots answer an open end-of-game vote themselves, one per tick, so a vote
   // never sits waiting on a seat nobody is playing.
@@ -214,9 +216,9 @@ export default function App() {
     const timer = window.setTimeout(() => {
       const seat = pending[0]
       dispatch({ type: 'respondEnd', responder: seat as PlayerId, accept: respondToEnd(state, seat) })
-    }, 600)
+    }, fastMode ? 30 : 600)
     return () => window.clearTimeout(timer)
-  }, [state, botPresets, dispatch])
+  }, [state, botPresets, dispatch, fastMode])
 
   // A bot's offer waits on the human, but not forever: the clock below gives a
   // real chance to read it and answer, then passes so play cannot stall on an
@@ -466,6 +468,17 @@ export default function App() {
       <header className="topbar">
         <div className="topbar__left">
           <SettingsChip settings={state.settings} botPresets={botPresets} />
+          {Object.keys(botPresets).length > 0 && (
+            <button
+              className="chip"
+              style={{ cursor: 'pointer', fontSize: '0.8rem', opacity: fastMode ? 1 : 0.6 }}
+              onClick={() => setFastMode((v) => !v)}
+              title="Fast mode: bots act near-instantly. Trade offers to you still wait the full clock."
+              aria-pressed={fastMode}
+            >
+              ⚡ {fastMode ? 'Fast' : 'Normal'}
+            </button>
+          )}
           <h1 className="topbar__title">Catan</h1>
         </div>
         <PlayerStrip

@@ -4,7 +4,7 @@
 
 export type AIPreset = 'aggressive' | 'economic' | 'turtle' | null
 
-import type { Resource } from './board'
+import { vertexNeighbours, type Resource } from './board'
 import {
   PIECE_LIMITS,
   currentPlayerId,
@@ -107,6 +107,79 @@ function vertexScore(state: GameState, vertexId: string, player: Player, preset:
     if (t.type === 'brick' || t.type === 'lumber') score += 0.75
   }
   return score
+}
+
+function occupiedVertices(state: GameState): Set<string> {
+  const out = new Set<string>()
+  for (const p of state.players) {
+    p.settlements.forEach((v) => out.add(v))
+    p.cities.forEach((v) => out.add(v))
+  }
+  return out
+}
+
+function isSettleable(state: GameState, vertexId: string, occ: Set<string>): boolean {
+  return !occ.has(vertexId) && vertexNeighbours(state.board, vertexId).every((n) => !occ.has(n))
+}
+
+/**
+ * Vertices an opponent could reach in one road from where they already are —
+ * racing them for one of these is a coin flip, so it's worth less to us.
+ */
+function contestedVertices(state: GameState, seat: PlayerId): Set<string> {
+  const out = new Set<string>()
+  for (const p of state.players) {
+    if (p.id === seat) continue
+    const ends = new Set<string>([...p.settlements, ...p.cities])
+    for (const eid of p.roads) {
+      const e = state.board.edges.find((x) => x.id === eid)!
+      ends.add(e.a)
+      ends.add(e.b)
+    }
+    ends.forEach((v) => {
+      vertexNeighbours(state.board, v).forEach((n) => out.add(n))
+    })
+  }
+  return out
+}
+
+/**
+ * A road is worth more than its immediate endpoint: walk a few steps further
+ * along the vertex graph for the best legal settlement spot reachable from
+ * here, discounted by distance so a great spot three roads out doesn't beat a
+ * good spot one road away. Spots an opponent could also reach in one road are
+ * discounted further — no point racing for a corner they'll likely win.
+ */
+function roadLookaheadScore(
+  state: GameState,
+  startVertex: string,
+  player: Player,
+  preset: AIPreset,
+  maxDepth = 3,
+): number {
+  const occ = occupiedVertices(state)
+  const contested = contestedVertices(state, player.id)
+  const seen = new Set<string>([startVertex])
+  let frontier = [startVertex]
+  let bestScore = -Infinity
+  for (let depth = 0; depth <= maxDepth; depth++) {
+    const next: string[] = []
+    for (const v of frontier) {
+      if (isSettleable(state, v, occ)) {
+        let s = vertexScore(state, v, player, preset) / (1 + depth * 0.5)
+        if (contested.has(v)) s *= 0.5
+        if (s > bestScore) bestScore = s
+      }
+      for (const n of vertexNeighbours(state.board, v)) {
+        if (!seen.has(n)) {
+          seen.add(n)
+          next.push(n)
+        }
+      }
+    }
+    frontier = next
+  }
+  return bestScore === -Infinity ? 0 : bestScore
 }
 
 function best<T>(items: T[], score: (item: T) => number): T | null {
@@ -381,11 +454,12 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
     if (state.pendingRoadFrom) {
       const edges = [...edgeTargets(state)]
       if (!edges.length) return null
-      // Head towards the better of the road's two ends.
+      // Head towards the better of the road's two ends, looking a few steps
+      // further along that direction rather than just the next corner.
       const pickEdge = best(edges, (id) => {
         const e = state.board.edges.find((x) => x.id === id)!
         const far = e.a === state.pendingRoadFrom ? e.b : e.a
-        return vertexScore(state, far, me, preset)
+        return roadLookaheadScore(state, far, me, preset)
       })
       return { type: 'edge', id: pickEdge! }
     }
@@ -407,7 +481,10 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
     if (!edges.length) return { type: 'setMode', mode: null }
     const pickEdge = best(edges, (id) => {
       const e = state.board.edges.find((x) => x.id === id)!
-      return Math.max(vertexScore(state, e.a, me, preset), vertexScore(state, e.b, me, preset))
+      return Math.max(
+        roadLookaheadScore(state, e.a, me, preset),
+        roadLookaheadScore(state, e.b, me, preset),
+      )
     })
     return { type: 'edge', id: pickEdge! }
   }
