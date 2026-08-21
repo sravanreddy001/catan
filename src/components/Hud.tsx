@@ -1142,6 +1142,51 @@ export function EndVote({
   )
 }
 
+export function VpVote({
+  vote,
+  players,
+  currentTarget,
+  answerable,
+  onRespond,
+}: {
+  vote: { from: PlayerId; target: number; accepted: PlayerId[] }
+  players: Player[]
+  currentTarget: number
+  /** Seats this client may answer for — bots answer themselves. */
+  answerable: PlayerId[]
+  onRespond: (responder: PlayerId, accept: boolean) => void
+}) {
+  const proposer = players.find((p) => p.id === vote.from)!
+  const pending = players.filter(
+    (p) => p.id !== vote.from && !vote.accepted.includes(p.id) && answerable.includes(p.id),
+  )
+  if (pending.length === 0) return null
+  const waiting = players.length - 1 - vote.accepted.length
+
+  return (
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="vp-vote-title">
+      <div className="modal__panel">
+        <h2 id="vp-vote-title" className="modal__title">
+          {proposer.name} wants to raise the win target to {vote.target}
+        </h2>
+        <p className="draft__hint">
+          Everyone has to agree. Waiting on {waiting}.
+        </p>
+        <div className="offer__responders">
+          {pending.map((p) => (
+            <button key={p.id} className="btn btn--accept" onClick={() => onRespond(p.id, true)}>
+              {pending.length > 1 ? `${p.name} agrees` : `Agree — play to ${vote.target}`}
+            </button>
+          ))}
+        </div>
+        <button className="btn" onClick={() => onRespond(pending[0].id, false)}>
+          Keep it at {currentTarget}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function OfferResponse({ offer, players, answerable, secondsLeft, onAccept, onDecline }: OfferResponseProps) {
   useEscapeKey(onDecline)
   const proposer = players.find((p) => p.id === offer.from)!

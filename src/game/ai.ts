@@ -4,7 +4,37 @@
 
 export type AIPreset = 'aggressive' | 'economic' | 'turtle' | null
 
-import { vertexNeighbours, type Resource } from './board'
+/**
+ * How far the bot looks ahead, independent of its aggressive/economic/turtle
+ * personality. Personality picks a style; difficulty picks a skill level, and
+ * is meant to be changed mid-game to tune the challenge up or down.
+ *
+ * - rookie: exactly the original greedy bot — fixed city-first goal, plays
+ *   the first legal dev card, trades one card at a time.
+ * - casual: picks its next build (city/settlement) by actual value on the
+ *   board instead of a fixed rule, so trades and discards serve a real plan.
+ * - sharp: casual, plus it also chases longest road / largest army when
+ *   in reach, asks for its full trade deficit, and won't hand cards to
+ *   whoever is one or two points from winning.
+ * - master: sharp, plus it scores which dev card to play (not just the
+ *   first one), pre-empts a robber sitting on its own tile before rolling,
+ *   and aims the robber at whoever it hurts most.
+ */
+export type AIDifficulty = 'rookie' | 'casual' | 'sharp' | 'master'
+
+export const DIFFICULTY_LEVELS: Array<{ value: AIDifficulty; label: string; blurb: string }> = [
+  { value: 'rookie', label: 'Rookie', blurb: 'Greedy, no plan. Easiest.' },
+  { value: 'casual', label: 'Casual', blurb: 'Picks a real build goal and saves for it.' },
+  { value: 'sharp', label: 'Sharp', blurb: 'Chases longest road/largest army, trades smarter.' },
+  { value: 'master', label: 'Master', blurb: 'Plays dev cards with judgment, robber hits hardest.' },
+]
+
+const DIFFICULTY_ORDER: AIDifficulty[] = ['rookie', 'casual', 'sharp', 'master']
+function level(d: AIDifficulty): number {
+  return DIFFICULTY_ORDER.indexOf(d)
+}
+
+import { longestRoadLength, vertexNeighbours, type Resource } from './board'
 import {
   PIECE_LIMITS,
   currentPlayerId,
@@ -17,6 +47,7 @@ import {
 } from './engine'
 import {
   COSTS,
+  DEV_COST,
   canAfford,
   canAffordDev,
   victoryPoints,
@@ -212,15 +243,31 @@ function missingFor(
   return gap
 }
 
+/** What the player still needs to afford a development card. */
+function missingForDev(player: Player): Partial<Record<Resource, number>> {
+  const gap: Partial<Record<Resource, number>> = {}
+  for (const [res, n] of Object.entries(DEV_COST)) {
+    const short = (n ?? 0) - player.hand[res as Resource]
+    if (short > 0) gap[res as Resource] = short
+  }
+  return gap
+}
+
 /** Robber goes on the strongest tile of whoever is winning, never our own. */
-function robberTarget(state: GameState, seat: number, preset: AIPreset = null): string {
+function robberTarget(
+  state: GameState,
+  seat: number,
+  preset: AIPreset = null,
+  difficulty: AIDifficulty = 'rookie',
+): string {
   const config = getPresetConfig(preset)
   const me = state.players[seat]
   const mine = new Set([...me.settlements, ...me.cities])
   const leader = best(
     state.players.filter((p) => p.id !== seat),
-    (p) => victoryPoints(p) * 10 + handTotal(p),
+    (p) => victoryPoints(p, state.armyHolder, state.roadHolder) * 10 + handTotal(p),
   )
+  const master = level(difficulty) >= 3
 
   const candidates = state.board.tiles.filter((t) => {
     if (t.id === state.robberTile || t.type === 'desert') return false
@@ -229,13 +276,30 @@ function robberTarget(state: GameState, seat: number, preset: AIPreset = null): 
 
   const scored = best(candidates, (t) => {
     const corners = state.board.tileVertices[t.id]
-    const hitsLeader = leader
-      ? corners.some((v) => leader.settlements.includes(v) || leader.cities.includes(v))
-      : false
-    const anyone = state.players.some(
+    const victims = state.players.filter(
       (p) => p.id !== seat && corners.some((v) => p.settlements.includes(v) || p.cities.includes(v)),
     )
-    return pips(t.number) + (hitsLeader ? config.hitsLeaderBonus : 0) + (anyone ? 4 : 0)
+    const hitsLeader = leader ? victims.some((v) => v.id === leader.id) : false
+    if (!master) {
+      return pips(t.number) + (hitsLeader ? config.hitsLeaderBonus : 0) + (victims.length > 0 ? 4 : 0)
+    }
+    // Master: a tile with exactly one victim guarantees who gets robbed — a
+    // shared tile with several settlements means the steal is a coin flip
+    // across them, worth less than a sure hit. Also weighs the victim's hand
+    // size (nothing to steal from an empty hand) and whether it sits on the
+    // leader's most-needed resource right now.
+    const singleVictimBonus = victims.length === 1 ? 3 : 0
+    const handWeight = victims.reduce((sum, v) => sum + Math.min(handTotal(v), 4), 0)
+    const leaderNeed = leader ? { ...missingFor(leader, 'settlement'), ...missingFor(leader, 'city') } : {}
+    const deniesLeaderNeed = hitsLeader && t.type !== 'desert' && leaderNeed[t.type as Resource] ? 6 : 0
+    return (
+      pips(t.number) +
+      (hitsLeader ? config.hitsLeaderBonus : 0) +
+      (victims.length > 0 ? 2 : 0) +
+      singleVictimBonus +
+      handWeight +
+      deniesLeaderNeed
+    )
   })
 
   return scored?.id ?? state.board.tiles.find((t) => t.id !== state.robberTile)!.id
@@ -251,12 +315,109 @@ function cityTargets(state: GameState): string[] {
   return [...vertexTargets({ ...state, mode: 'city' })]
 }
 
-function tradeTowardsGoal(state: GameState, seat: number, preset: AIPreset = null): Action | null {
+/** kind === null when nothing is worth building right now (e.g. save for a dev card). */
+interface BuildTarget {
+  kind: 'city' | 'settlement' | 'road' | 'dev' | null
+  need: Partial<Record<Resource, number>>
+}
+
+const BUILD_COST_SIZE: Record<'road' | 'settlement' | 'city', number> = {
+  road: 2,
+  settlement: 4,
+  city: 5,
+}
+
+/** Blocks a road walk at any vertex an *other* player already occupies. */
+function opponentVertices(state: GameState, seat: number): Set<string> {
+  const out = new Set<string>()
+  for (const p of state.players) {
+    if (p.id === seat) continue
+    p.settlements.forEach((v) => out.add(v))
+    p.cities.forEach((v) => out.add(v))
+  }
+  return out
+}
+
+/**
+ * What the bot is actually building toward, and what it still needs for it.
+ * Rookie keeps the original fixed "always city until 4, then settlement"
+ * rule. Casual and up compare every real next VP move — a city, a
+ * settlement, a road push for longest road, a dev card push for largest
+ * army — by rough value per resource spent, so the goal reflects the board
+ * instead of a rule that ignores it. Everything that reads "what do I need"
+ * (trading, discarding, the merchant, judging an incoming offer) shares this
+ * one answer.
+ */
+function planTarget(
+  state: GameState,
+  seat: number,
+  preset: AIPreset,
+  difficulty: AIDifficulty,
+): BuildTarget {
+  const me = state.players[seat]
+  if (level(difficulty) < 1) {
+    const kind = me.settlements.length > 0 && me.cities.length < 4 ? 'city' : 'settlement'
+    return { kind, need: missingFor(me, kind) }
+  }
+
+  const candidates: Array<{ kind: 'city' | 'settlement' | 'road' | 'dev'; value: number }> = []
+
+  if (me.cities.length < PIECE_LIMITS.cities) {
+    const spots = cityTargets(state)
+    if (spots.length > 0) {
+      const quality = vertexScore(state, best(spots, (v) => vertexScore(state, v, me, preset))!, me, preset)
+      candidates.push({ kind: 'city', value: (2 + quality / 20) / BUILD_COST_SIZE.city })
+    }
+  }
+  if (me.settlements.length + me.cities.length < PIECE_LIMITS.settlements) {
+    const spots = targetsFor(state, 'settlement')
+    if (spots.length > 0) {
+      const quality = vertexScore(state, best(spots, (v) => vertexScore(state, v, me, preset))!, me, preset)
+      candidates.push({ kind: 'settlement', value: (1 + quality / 20) / BUILD_COST_SIZE.settlement })
+    }
+  }
+
+  // Sharp+: also weigh the two VP bonuses, but only once actually in reach —
+  // a turtle three roads behind chasing longest road just burns brick/lumber
+  // it needed for settlements.
+  if (level(difficulty) >= 2) {
+    if (me.roads.length < PIECE_LIMITS.roads && state.roadHolder !== seat) {
+      const blocked = opponentVertices(state, seat)
+      const myLen = longestRoadLength(state.board, me.roads, blocked)
+      const holderLen = state.roadHolder !== null
+        ? longestRoadLength(state.board, state.players[state.roadHolder].roads, opponentVertices(state, state.roadHolder))
+        : 4
+      const gap = Math.max(holderLen + 1 - myLen, 5 - myLen)
+      if (gap <= 2 && edgeTargets(state).size > 0) {
+        candidates.push({ kind: 'road', value: (2 / gap) / BUILD_COST_SIZE.road })
+      }
+    }
+    if (state.armyHolder !== seat && state.deck.length > 0) {
+      const armyLead = Math.max(0, ...state.players.filter((p) => p.id !== seat).map((p) => p.knights))
+      const gap = Math.max(armyLead + 1 - me.knights, 3 - me.knights)
+      if (gap <= 2) {
+        candidates.push({ kind: 'dev', value: (2 / gap) / 3 })
+      }
+    }
+  }
+
+  const top = best(candidates, (c) => c.value)
+  if (!top) return { kind: null, need: {} }
+  if (top.kind === 'road') return { kind: 'road', need: missingFor(me, 'road') }
+  if (top.kind === 'dev') return { kind: 'dev', need: missingForDev(me) }
+  return { kind: top.kind, need: missingFor(me, top.kind) }
+}
+
+function tradeTowardsGoal(
+  state: GameState,
+  seat: number,
+  preset: AIPreset = null,
+  difficulty: AIDifficulty = 'rookie',
+): Action | null {
   const config = getPresetConfig(preset)
   const me = state.players[seat]
   const rates = ratesFor(state, seat)
-  const goal = me.settlements.length > 0 && me.cities.length < 4 ? 'city' : 'settlement'
-  const need = missingFor(me, goal)
+  const need = planTarget(state, seat, preset, difficulty).need
   const wanted = (Object.keys(need) as Resource[])[0]
   // If the bank is dry on the wanted resource, no trade can ever succeed —
   // without this the bot would keep proposing the same rejected trade forever.
@@ -279,47 +440,56 @@ function tradeTowardsGoal(state: GameState, seat: number, preset: AIPreset = nul
 }
 
 /**
- * Which of the revealed cards a bot takes. Scored by what the card is worth to
- * *this* bot right now, not by a fixed ranking: a knight is worth more while
- * the largest army is still winnable, the free-resource cards are worth more
- * when the current build is short, and a victory card is worth most when it
- * would finish the game.
+ * What a dev card of this kind is worth to this bot right now: a knight is
+ * worth more while the largest army is still winnable, the free-resource
+ * cards are worth more when the current build is short, and a victory card
+ * is worth most when it would finish the game. Shared by drafting (which of
+ * the revealed cards to take) and, at master difficulty, by deciding which
+ * ready card in hand is worth playing this turn.
  */
-export function chooseDraft(state: GameState, seat: number, preset: AIPreset = null): number {
-  const options = state.draft ?? []
-  if (options.length === 0) return 0
+function devKindScore(state: GameState, seat: number, preset: AIPreset, kind: DevKind): number {
   const config = getPresetConfig(preset)
   const me = state.players[seat]
   const need = { ...missingFor(me, 'settlement'), ...missingFor(me, 'city') }
   const shortBy = Object.values(need).reduce((sum, n) => sum + (n ?? 0), 0)
   const armyLead = Math.max(0, ...state.players.filter((p) => p.id !== seat).map((p) => p.knights))
-  const vpNow = victoryPoints(me, null, null)
+  const vpNow = victoryPoints(me, state.armyHolder, state.roadHolder)
+  const opponentStock = (res: Resource) =>
+    state.players.reduce((sum, p) => (p.id === seat ? sum : sum + p.hand[res]), 0)
 
-  const score = (kind: DevKind): number => {
-    switch (kind) {
-      case 'victory':
-        // Worth everything if it wins outright, a slow point otherwise.
-        return vpNow + 1 >= state.settings.vpTarget ? 100 : 4
-      case 'knight':
-        // Chasing the army bonus, or just needing the robber moved off a tile.
-        return me.knights >= armyLead ? 5 + config.hitsLeaderBonus / 4 : 3
-      case 'merit':
-      case 'plenty':
-      case 'merchant':
-        return 2 + shortBy
-      case 'monopoly':
-        return 3 + shortBy / 2
-      case 'roadBuilding':
-      case 'trailblazer':
-        return me.roads.length < PIECE_LIMITS.roads ? 3 : 0
-      case 'diplomat':
-        return 2
+  switch (kind) {
+    case 'victory':
+      // Worth everything if it wins outright, a slow point otherwise.
+      return vpNow + 1 >= state.settings.vpTarget ? 100 : 4
+    case 'knight':
+      // Chasing the army bonus, or just needing the robber moved off a tile.
+      return me.knights >= armyLead ? 5 + config.hitsLeaderBonus / 4 : 3
+    case 'merit':
+    case 'plenty':
+    case 'merchant':
+      return 2 + shortBy
+    case 'monopoly': {
+      // Only worth naming a resource the table is actually sitting on.
+      const best = Math.max(...ALL.map(opponentStock))
+      return best >= 3 ? 3 + shortBy / 2 + best : 0
     }
+    case 'roadBuilding':
+    case 'trailblazer':
+      return me.roads.length < PIECE_LIMITS.roads ? 3 : 0
+    case 'diplomat':
+      return 2
   }
+}
 
+/** Which of the revealed cards a bot takes — the highest-scoring one. */
+export function chooseDraft(state: GameState, seat: number, preset: AIPreset = null): number {
+  const options = state.draft ?? []
+  if (options.length === 0) return 0
   let bestIndex = 0
   for (let i = 1; i < options.length; i++) {
-    if (score(options[i]) > score(options[bestIndex])) bestIndex = i
+    if (devKindScore(state, seat, preset, options[i]) > devKindScore(state, seat, preset, options[bestIndex])) {
+      bestIndex = i
+    }
   }
   return bestIndex
 }
@@ -331,12 +501,16 @@ const MAX_OFFERS_PER_TURN = 2
  * A 1:1 swap put to the table. Cheaper than any bank rate, so the bot tries
  * this before paying 4:1 — it costs only a pause if everyone refuses.
  */
-function proposeSwap(state: GameState, seat: number, preset: AIPreset = null): Action | null {
+function proposeSwap(
+  state: GameState,
+  seat: number,
+  preset: AIPreset = null,
+  difficulty: AIDifficulty = 'rookie',
+): Action | null {
   if (state.offer || (state.offersMade ?? 0) >= MAX_OFFERS_PER_TURN) return null
   const config = getPresetConfig(preset)
   const me = state.players[seat]
-  const goal = me.settlements.length > 0 && me.cities.length < 4 ? 'city' : 'settlement'
-  const need = missingFor(me, goal)
+  const need = planTarget(state, seat, preset, difficulty).need
   const wanted = (Object.keys(need) as Resource[])[0]
   if (!wanted) return null
   // Never ask the table for a card nobody is holding.
@@ -350,11 +524,15 @@ function proposeSwap(state: GameState, seat: number, preset: AIPreset = null): A
   const give = best(spare, (res) => me.hand[res])
   if (!give) return null
 
+  // Sharp+ asks for the whole deficit in one go instead of always 1-for-1,
+  // capped so the ask stays plausible for someone to actually hold.
+  const qty = level(difficulty) >= 2 ? Math.min(need[wanted] ?? 1, 2, me.hand[give]) : 1
+
   const offer = {
     from: seat as PlayerId,
     to: 'any' as const,
-    give: { [give]: 1 },
-    want: { [wanted]: 1 },
+    give: { [give]: qty },
+    want: { [wanted]: qty },
     declinedBy: [],
   }
   // Nothing changed hands since the table turned this exact swap down —
@@ -368,7 +546,12 @@ function proposeSwap(state: GameState, seat: number, preset: AIPreset = null): A
  * The bot's move for the current turn. Returns null when it has nothing left
  * to do, which the caller turns into an end of turn.
  */
-export function chooseAction(state: GameState, seat: number, preset: AIPreset = null): Action | null {
+export function chooseAction(
+  state: GameState,
+  seat: number,
+  preset: AIPreset = null,
+  difficulty: AIDifficulty = 'rookie',
+): Action | null {
   if (currentPlayerId(state) !== seat) return null
   const me = state.players[seat]
 
@@ -447,7 +630,7 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
     return { type: 'merchantCancel' }
   }
 
-  if (state.mode === 'robber') return { type: 'tile', id: robberTarget(state, seat, preset) }
+  if (state.mode === 'robber') return { type: 'tile', id: robberTarget(state, seat, preset, difficulty) }
 
   // --- opening placements -------------------------------------------------
   if (state.phase === 'setup') {
@@ -469,6 +652,19 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
   }
 
   // --- normal turn --------------------------------------------------------
+  // Master: a robber sitting on one of our own tiles is lost production every
+  // roll until moved — playing a knight before rolling clears it a turn
+  // earlier than waiting to draw one after.
+  if (
+    level(difficulty) >= 3 &&
+    !state.hasRolled &&
+    !state.playedDev &&
+    [...me.settlements, ...me.cities].some((v) => (state.board.vertexTiles[v] ?? []).includes(state.robberTile))
+  ) {
+    const knight = me.devCards.find((c) => c.ready && c.kind === 'knight' && !c.spent)
+    if (knight) return { type: 'playDev', cardId: knight.id }
+  }
+
   if (!state.hasRolled) return { type: 'roll' }
 
   // Finish a build already committed to.
@@ -491,8 +687,33 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
 
   // Knights win the largest army bonus and the robber is worth moving.
   if (!state.playedDev) {
-    const playable = me.devCards.find((c) => c.ready && c.kind !== 'victory' && !c.spent)
-    if (playable) return { type: 'playDev', cardId: playable.id }
+    const playable = me.devCards.filter((c) => c.ready && c.kind !== 'victory' && !c.spent)
+    if (playable.length > 0) {
+      // Master picks whichever ready card is actually worth playing now
+      // (e.g. skips a monopoly nobody has cards for); everyone else just
+      // plays the first one, as before.
+      const card =
+        level(difficulty) >= 3
+          ? best(playable, (c) => devKindScore(state, seat, preset, c.kind))!
+          : playable[0]
+      return { type: 'playDev', cardId: card.id }
+    }
+  }
+
+  const target = planTarget(state, seat, preset, difficulty)
+  const hasCitySpots = canAfford(me, 'city') && cityTargets(state).length > 0
+  const hasSettlementSpots = canAfford(me, 'settlement') && targetsFor(state, 'settlement').length > 0
+  const hasRoadSpots =
+    canAfford(me, 'road') && me.roads.length < PIECE_LIMITS.roads && targetsFor(state, 'road').length > 0
+
+  // Casual+: build whatever planTarget actually settled on, when it is
+  // affordable right now — the plan is what decided what to save resources
+  // for, so it should also decide what to spend them on.
+  if (level(difficulty) >= 1) {
+    if (target.kind === 'city' && hasCitySpots) return { type: 'setMode', mode: 'city' }
+    if (target.kind === 'settlement' && hasSettlementSpots) return { type: 'setMode', mode: 'settlement' }
+    if (target.kind === 'road' && hasRoadSpots) return { type: 'setMode', mode: 'road' }
+    if (target.kind === 'dev' && canAffordDev(me) && state.deck.length > 0) return { type: 'buyDev' }
   }
 
   // Cities first (2 VP and double production), then settlements, then roads.
@@ -500,8 +721,6 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
   // it cannot place and never finishes its turn.
   // Preset's cityPreference multiplier affects the order: high = prefer cities, low = prefer settlements.
   const config = getPresetConfig(preset)
-  const hasCitySpots = canAfford(me, 'city') && cityTargets(state).length > 0
-  const hasSettlementSpots = canAfford(me, 'settlement') && targetsFor(state, 'settlement').length > 0
 
   if (config.cityPreference >= 1 && hasCitySpots) {
     // Default and economic (>=1): prioritize cities, matching pre-preset behavior.
@@ -517,15 +736,15 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
   }
 
   if (canAffordDev(me) && state.deck.length > 0 && handTotal(me) >= 3) return { type: 'buyDev' }
-  if (canAfford(me, 'road') && me.roads.length < PIECE_LIMITS.roads && targetsFor(state, 'road').length > 0) {
+  if (hasRoadSpots) {
     return { type: 'setMode', mode: 'road' }
   }
 
   // Ask the table first, fall back to the bank's worse rate.
-  const swap = proposeSwap(state, seat, preset)
+  const swap = proposeSwap(state, seat, preset, difficulty)
   if (swap) return swap
 
-  const trade = tradeTowardsGoal(state, seat, preset)
+  const trade = tradeTowardsGoal(state, seat, preset, difficulty)
   if (trade) return trade
 
   return null
@@ -536,12 +755,16 @@ export function chooseAction(state: GameState, seat: number, preset: AIPreset = 
  * ranked by how much of it is held. Falls back to a random legal bundle once
  * every resource is needed, so it can never get stuck short.
  */
-export function chooseDiscard(state: GameState, seat: number, _preset: AIPreset = null): Partial<Record<Resource, number>> {
+export function chooseDiscard(
+  state: GameState,
+  seat: number,
+  preset: AIPreset = null,
+  difficulty: AIDifficulty = 'rookie',
+): Partial<Record<Resource, number>> {
   const owed = state.discards[seat as PlayerId]
   if (!owed) return {}
   const me = state.players[seat]
-  const goal = me.settlements.length > 0 && me.cities.length < 4 ? 'city' : 'settlement'
-  const need = missingFor(me, goal)
+  const need = planTarget(state, seat, preset, difficulty).need
 
   const pool: Resource[] = []
   for (const [res, n] of Object.entries(me.hand)) {
@@ -582,7 +805,12 @@ export function respondToEnd(_state: GameState, _seat: number): boolean {
   return true
 }
 
-export function respondToOffer(state: GameState, seat: number, preset: AIPreset = null): 'accept' | 'decline' {
+export function respondToOffer(
+  state: GameState,
+  seat: number,
+  preset: AIPreset = null,
+  difficulty: AIDifficulty = 'rookie',
+): 'accept' | 'decline' {
   const config = getPresetConfig(preset)
   const offer = state.offer
   if (!offer) return 'decline'
@@ -593,8 +821,17 @@ export function respondToOffer(state: GameState, seat: number, preset: AIPreset 
   )
   if (!canCover) return 'decline'
 
-  const goal = me.settlements.length > 0 ? 'city' : 'settlement'
-  const need = missingFor(me, goal)
+  // Sharp+: never hand cards to whoever is one or two points from winning,
+  // no matter how good the price looks — a good player wouldn't either.
+  if (level(difficulty) >= 2) {
+    const proposer = state.players[offer.from]
+    const proposerVp = victoryPoints(proposer, state.armyHolder, state.roadHolder)
+    if (proposerVp >= state.settings.vpTarget - 2 && Object.values(offer.give).some((n) => n)) {
+      return 'decline'
+    }
+  }
+
+  const need = planTarget(state, seat, preset, difficulty).need
   const gain = Object.entries(offer.give).reduce(
     (sum, [res, n]) => sum + (need[res as Resource] ? (n ?? 0) * 2 : (n ?? 0) * 0.5),
     0,

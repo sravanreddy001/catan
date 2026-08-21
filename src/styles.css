@@ -103,6 +103,22 @@ body {
   background: color-mix(in srgb, var(--c) 22%, transparent);
 }
 
+.difficulty-chip {
+  padding: 8px 10px;
+}
+
+.difficulty-chip__bar {
+  display: inline-block;
+  width: 4px;
+  border-radius: 1px;
+  align-self: flex-end;
+  transition: background 0.15s ease;
+}
+
+.difficulty-chip__bar + .difficulty-chip__bar {
+  margin-left: 2px;
+}
+
 .chip__dot {
   width: 12px;
   height: 12px;

@@ -162,6 +162,13 @@ export interface GameState {
    * `endVote ?? null`.
    */
   endVote: { from: PlayerId; accepted: PlayerId[] } | null
+  /**
+   * A live proposal to raise the win target, same shape as `endVote`: needs
+   * everyone's agreement, one refusal cancels it. Null when nothing is being
+   * voted on, and absent from saves written before this shipped — read it as
+   * `vpVote ?? null`.
+   */
+  vpVote: { from: PlayerId; target: number; accepted: PlayerId[] } | null
   settings: GameSettings
 }
 
@@ -191,6 +198,9 @@ export type Action =
   | { type: 'discard'; playerId: PlayerId; cards: Partial<Record<Resource, number>> }
   | { type: 'proposeEnd' }
   | { type: 'respondEnd'; responder: PlayerId; accept: boolean }
+  /** Off-turn, so it carries its own proposer rather than reading the current player. */
+  | { type: 'proposeVpIncrease'; from: PlayerId; target: number }
+  | { type: 'respondVpVote'; responder: PlayerId; accept: boolean }
   | { type: 'endTurn' }
 
 /** Snake order for the opening placements, e.g. 1,3,0,2,2,0,3,1 for order [1,3,0,2]. */
@@ -254,6 +264,7 @@ export function createGame(playerCount: number, names?: string[], colors?: numbe
     offersMade: 0,
     rejectedSwaps: [],
     endVote: null,
+    vpVote: null,
     deck: createDevDeck(
       Math.random,
       finalSettings.newDevCards,
@@ -1264,6 +1275,48 @@ function step(state: GameState, action: Action): GameState {
       }
     }
 
+    case 'proposeVpIncrease': {
+      // Off-turn by design — anyone at the table can suggest a longer game,
+      // not just whoever happens to be rolling. Only a genuine increase,
+      // capped well above any normal target, is worth voting on.
+      if (state.phase !== 'play' || state.vpVote || state.settings.endless) return state
+      if (!Number.isInteger(action.target) || action.target <= state.settings.vpTarget || action.target > 30) {
+        return state
+      }
+      return {
+        ...state,
+        vpVote: { from: action.from, target: action.target, accepted: [] },
+        message: `${state.players[action.from].name} wants to raise the win target to ${action.target} — everyone must agree.`,
+      }
+    }
+
+    case 'respondVpVote': {
+      const vote = state.vpVote
+      if (!vote || action.responder === vote.from || vote.accepted.includes(action.responder)) return state
+      if (!action.accept) {
+        return {
+          ...state,
+          vpVote: null,
+          message: `${state.players[action.responder].name} declined — win target stays ${state.settings.vpTarget}.`,
+        }
+      }
+      const accepted = [...vote.accepted, action.responder]
+      if (accepted.length < state.players.length - 1) {
+        const waiting = state.players.length - 1 - accepted.length
+        return {
+          ...state,
+          vpVote: { ...vote, accepted },
+          message: `${waiting} more to agree to raise the win target to ${vote.target}.`,
+        }
+      }
+      return {
+        ...state,
+        vpVote: null,
+        settings: { ...state.settings, vpTarget: vote.target },
+        message: `The table agreed — win target is now ${vote.target}.`,
+      }
+    }
+
     case 'endTurn': {
       if (state.phase !== 'play' || state.mode === 'robber' || state.picking || state.draft || state.merchant) return state
       const next = (state.turn + 1) % state.players.length
@@ -1288,6 +1341,7 @@ function step(state: GameState, action: Action): GameState {
         rejectedSwaps: [],
         // An unresolved vote does not carry into someone else's turn.
         endVote: null,
+        vpVote: null,
         message: `${state.players[nextId].name} to roll.`,
       }
     }

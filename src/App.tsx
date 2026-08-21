@@ -21,6 +21,7 @@ import {
   ResourcePicker,
   SettingsChip,
   TradeBar,
+  VpVote,
 } from './components/Hud'
 import {
   createGame,
@@ -34,7 +35,15 @@ import {
   type GameSettings,
   type GameState,
 } from './game/engine'
-import { chooseAction, chooseDiscard, respondToEnd, respondToOffer, type AIPreset } from './game/ai'
+import {
+  chooseAction,
+  chooseDiscard,
+  respondToEnd,
+  respondToOffer,
+  DIFFICULTY_LEVELS,
+  type AIDifficulty,
+  type AIPreset,
+} from './game/ai'
 import {
   PALETTE,
   canAffordDev,
@@ -78,6 +87,12 @@ function actorMayDispatch(state: GameState, action: Action, fromSeat: number): b
       return action.responder === fromSeat
     case 'cancelOffer':
       return state.offer?.from === fromSeat
+    case 'respondEnd':
+      return action.responder === fromSeat
+    case 'proposeVpIncrease':
+      return action.from === fromSeat
+    case 'respondVpVote':
+      return action.responder === fromSeat
     default:
       return currentPlayerId(state) === fromSeat
   }
@@ -111,6 +126,8 @@ export default function App() {
   const [offerClock, setOfferClock] = useState<number | null>(null)
   /** Fast mode: bot decisions resolve near-instantly. Offers to the human still wait the full clock. */
   const [fastMode, setFastMode] = useState(false)
+  /** How sharp the bots play, independent of their personality preset. Changeable mid-game. */
+  const [botDifficulty, setBotDifficulty] = useState<AIDifficulty>('sharp')
 
   const host = useRef<HostSession | null>(null)
   const guest = useRef<GuestSession | null>(null)
@@ -158,12 +175,12 @@ export default function App() {
     if (state.offer) return
 
     const timer = window.setTimeout(() => {
-      const action = chooseAction(state, active, botPresets[active])
+      const action = chooseAction(state, active, botPresets[active], botDifficulty)
       dispatch(action ?? { type: 'endTurn' })
       setBotTick((t) => t + 1)
     }, fastMode ? 30 : 700)
     return () => window.clearTimeout(timer)
-  }, [state, botPresets, botTick, dispatch, fastMode])
+  }, [state, botPresets, botTick, dispatch, fastMode, botDifficulty])
 
   // A bot discards on its own the moment a 7 leaves it owing cards.
   useEffect(() => {
@@ -173,10 +190,14 @@ export default function App() {
     const seat = Number(owedSeat)
 
     const timer = window.setTimeout(() => {
-      dispatch({ type: 'discard', playerId: seat as PlayerId, cards: chooseDiscard(state, seat, botPresets[seat]) })
+      dispatch({
+        type: 'discard',
+        playerId: seat as PlayerId,
+        cards: chooseDiscard(state, seat, botPresets[seat], botDifficulty),
+      })
     }, fastMode ? 30 : 500)
     return () => window.clearTimeout(timer)
-  }, [state, botPresets, dispatch, fastMode])
+  }, [state, botPresets, dispatch, fastMode, botDifficulty])
 
   // A bot answers a trade offer pointed at it — one at a time, so an offer to
   // 'any' survives a bot's rejection as long as another responder is pending.
@@ -193,7 +214,7 @@ export default function App() {
     if (responders.length === 0) return
 
     const timer = window.setTimeout(() => {
-      const taker = responders.find((s) => respondToOffer(state, s, botPresets[s]) === 'accept')
+      const taker = responders.find((s) => respondToOffer(state, s, botPresets[s], botDifficulty) === 'accept')
       dispatch(
         taker !== undefined
           ? { type: 'acceptOffer', responder: taker as PlayerId }
@@ -201,7 +222,7 @@ export default function App() {
       )
     }, fastMode ? 30 : 900)
     return () => window.clearTimeout(timer)
-  }, [state, botPresets, dispatch, fastMode])
+  }, [state, botPresets, dispatch, fastMode, botDifficulty])
 
   // Bots answer an open end-of-game vote themselves, one per tick, so a vote
   // never sits waiting on a seat nobody is playing.
@@ -216,6 +237,22 @@ export default function App() {
     const timer = window.setTimeout(() => {
       const seat = pending[0]
       dispatch({ type: 'respondEnd', responder: seat as PlayerId, accept: respondToEnd(state, seat) })
+    }, fastMode ? 30 : 600)
+    return () => window.clearTimeout(timer)
+  }, [state, botPresets, dispatch, fastMode])
+
+  // Bots always agree to a higher win target — same reasoning as respondToEnd:
+  // a bot has no stake in a shorter or longer game, only a person does.
+  useEffect(() => {
+    const vote = state?.vpVote
+    if (!state || !vote) return
+    const pending = Object.keys(botPresets)
+      .map(Number)
+      .filter((s) => s !== vote.from && !vote.accepted.includes(s as PlayerId))
+    if (pending.length === 0) return
+
+    const timer = window.setTimeout(() => {
+      dispatch({ type: 'respondVpVote', responder: pending[0] as PlayerId, accept: true })
     }, fastMode ? 30 : 600)
     return () => window.clearTimeout(timer)
   }, [state, botPresets, dispatch, fastMode])
@@ -479,6 +516,41 @@ export default function App() {
               ⚡ {fastMode ? 'Fast' : 'Normal'}
             </button>
           )}
+          {Object.keys(botPresets).length > 0 && (() => {
+            const i = DIFFICULTY_LEVELS.findIndex((d) => d.value === botDifficulty)
+            const active = DIFFICULTY_LEVELS[i]
+            const colors = ['#4ade80', '#a3e635', '#f59e0b', '#ef4444']
+            return (
+              <button
+                className="chip difficulty-chip"
+                style={{ cursor: 'pointer' }}
+                onClick={() => setBotDifficulty(DIFFICULTY_LEVELS[(i + 1) % DIFFICULTY_LEVELS.length].value)}
+                title={`Bot difficulty: ${active.label} — ${active.blurb} Click to cycle — takes effect on the bots' next move.`}
+                aria-label={`Bot difficulty: ${active.label}`}
+              >
+                {DIFFICULTY_LEVELS.map((d, bar) => (
+                  <span
+                    key={d.value}
+                    className="difficulty-chip__bar"
+                    style={{
+                      height: `${5 + bar * 3}px`,
+                      background: bar <= i ? colors[i] : 'var(--chip-bar-off, #ffffff33)',
+                    }}
+                  />
+                ))}
+              </button>
+            )
+          })()}
+          {state.phase === 'play' && !state.settings.endless && !state.vpVote && (
+            <button
+              className="chip"
+              style={{ cursor: 'pointer', fontSize: '0.8rem' }}
+              onClick={() => dispatch({ type: 'proposeVpIncrease', from: viewerSeat, target: state.settings.vpTarget + 1 })}
+              title={`Propose raising the win target to ${state.settings.vpTarget + 1}. Everyone at the table has to agree.`}
+            >
+              🎯 {state.settings.vpTarget} VP ▲
+            </button>
+          )}
           <h1 className="topbar__title">Catan</h1>
         </div>
         <PlayerStrip
@@ -711,6 +783,18 @@ export default function App() {
             .map((p) => p.id)
             .filter((id) => !(id in botPresets)) as PlayerId[]}
           onRespond={(responder, accept) => dispatch({ type: 'respondEnd', responder, accept })}
+        />
+      )}
+
+      {state.vpVote && !(viewerSeat in botPresets) && viewerSeat !== state.vpVote.from && (
+        <VpVote
+          vote={state.vpVote}
+          players={state.players}
+          currentTarget={state.settings.vpTarget}
+          answerable={state.players
+            .map((p) => p.id)
+            .filter((id) => !(id in botPresets)) as PlayerId[]}
+          onRespond={(responder, accept) => dispatch({ type: 'respondVpVote', responder, accept })}
         />
       )}
 
