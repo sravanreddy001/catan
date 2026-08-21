@@ -58,7 +58,7 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin: 0;
-  color: #f3c969;
+  color: #e9c167;
 }
 
 .topbar__actions {
@@ -167,7 +167,7 @@ body {
 
 .chip__tooltip-title {
   font-weight: 700;
-  color: #f3c969;
+  color: #e9c167;
   margin-bottom: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line);
@@ -272,7 +272,7 @@ body {
 }
 
 .tile--target polygon {
-  stroke: #ffd977;
+  stroke: #e9c56f;
   stroke-width: 4;
 }
 
@@ -286,7 +286,7 @@ body {
 /* Targets pulse so they are obvious on any screen size. */
 .spot--target {
   fill: rgba(255, 255, 255, 0.95);
-  stroke: #ffd977;
+  stroke: #e9c56f;
   stroke-width: 3.5;
   cursor: pointer;
   animation: pulse 3.6s ease-in-out infinite;
@@ -303,7 +303,7 @@ body {
 
 .spot-target-group:hover .spot__hit-ring {
   fill: rgba(255, 217, 119, 0.22);
-  stroke: #ffd977;
+  stroke: #e9c56f;
   stroke-width: 2.5;
 }
 
@@ -326,7 +326,7 @@ body {
    an empty build spot, so "which one can I click" is answered on the board. */
 .piece__halo {
   fill: rgba(255, 217, 119, 0.14);
-  stroke: #ffd977;
+  stroke: #e9c56f;
   stroke-width: 3.5;
   animation: halo-pulse 2.4s ease-in-out infinite;
   pointer-events: none;
@@ -405,8 +405,8 @@ body {
   top: 6px;
   transform: translate(-50%, -6px);
   background: #1a1a1f;
-  color: #ffd977;
-  border: 1px solid #ffd977;
+  color: #e9c56f;
+  border: 1px solid #e9c56f;
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 0.85rem;
@@ -587,7 +587,7 @@ body {
 }
 
 .btn:focus-visible {
-  outline: 2px solid #ffd977;
+  outline: 2px solid #e9c56f;
   outline-offset: 2px;
 }
 
@@ -602,7 +602,7 @@ body {
 }
 
 .btn--primary {
-  background: #f3c969;
+  background: #e9c167;
   color: #1a2330;
   border-color: transparent;
   font-weight: 700;
@@ -610,7 +610,7 @@ body {
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: #f6d47e;
+  background: #edca78;
   border-color: transparent;
 }
 
@@ -626,7 +626,7 @@ body {
   min-height: 48px;
   padding: 10px 24px;
   border-radius: 12px;
-  background: #f3c969;
+  background: #e9c167;
   color: #1a2330;
   border-color: transparent;
   font-weight: 700;
@@ -635,7 +635,7 @@ body {
 }
 
 .btn--turn:hover:not(:disabled) {
-  background: #f6d47e;
+  background: #edca78;
   box-shadow: 0 6px 18px rgba(243, 201, 105, 0.35);
 }
 
@@ -644,7 +644,7 @@ body {
 }
 
 .btn--on {
-  outline: 2px solid #ffd977;
+  outline: 2px solid #e9c56f;
   background: rgba(255, 217, 119, 0.2);
   box-shadow: 0 0 0 4px rgba(255, 217, 119, 0.12);
 }
@@ -819,8 +819,8 @@ body {
   padding: 0 4px;
   border-radius: 999px;
   background: #1a2330;
-  color: #ffd977;
-  border: 1.5px solid #ffd977;
+  color: #e9c56f;
+  border: 1.5px solid #e9c56f;
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -894,7 +894,7 @@ body {
 }
 
 .swap--on {
-  outline: 2px solid #ffd977;
+  outline: 2px solid #e9c56f;
 }
 
 .swap__have {
@@ -1024,7 +1024,7 @@ body {
 .modal__title {
   margin: 0 0 16px;
   font-size: 18px;
-  color: #f3c969;
+  color: #e9c167;
 }
 
 .modal__tabs {
@@ -1143,7 +1143,7 @@ body {
 
 .pickgrid__pick:hover:not(:disabled) {
   background: rgba(243, 201, 105, 0.2);
-  border-color: #f3c969;
+  border-color: #e9c167;
 }
 
 .pickgrid__pick:active:not(:disabled),
@@ -1262,7 +1262,7 @@ body {
   z-index: 9;
   padding: 8px 14px;
   border-radius: 999px;
-  background: #f3c969;
+  background: #e9c167;
   color: #1a2330;
   font-weight: 700;
   border: none;
@@ -1308,7 +1308,7 @@ body {
 
 .draft__card:hover,
 .draft__card:focus-visible {
-  border-color: #f3c969;
+  border-color: #e9c167;
   background: rgba(243, 201, 105, 0.14);
 }
 
@@ -1371,7 +1371,7 @@ body {
 
 .lobby__preset:hover,
 .lobby__preset:focus-visible {
-  border-color: #f3c969;
+  border-color: #e9c167;
   background: rgba(243, 201, 105, 0.14);
 }
 
@@ -1499,7 +1499,7 @@ body {
 
 .lobby__tab--on {
   background: rgba(243, 201, 105, 0.18);
-  border-color: #f3c969;
+  border-color: #e9c167;
   color: var(--text);
 }
 
@@ -1608,9 +1608,9 @@ body {
 }
 
 .lobby__count-card:hover {
-  background: #f3c969;
+  background: #e9c167;
   color: #1a2330;
-  border-color: #f3c969;
+  border-color: #e9c167;
   transform: translateY(-2px);
 }
 
@@ -1625,7 +1625,7 @@ body {
 
 .lobby__count-card--on {
   background: rgba(243, 201, 105, 0.18);
-  border-color: #f3c969;
+  border-color: #e9c167;
 }
 
 .lobby__count-num {
@@ -1789,7 +1789,7 @@ body {
 .settings-section__title {
   font-size: 0.9rem;
   margin: 0 0 4px;
-  color: #f3c969;
+  color: #e9c167;
 }
 
 .checkbox-row {
@@ -1804,7 +1804,7 @@ body {
 .custom-checkbox {
   width: 18px;
   height: 18px;
-  accent-color: #f3c969;
+  accent-color: #e9c167;
   cursor: pointer;
 }
 
@@ -1829,7 +1829,7 @@ body {
 }
 
 .custom-select:focus {
-  border-color: #f3c969;
+  border-color: #e9c167;
 }
 
 .bot-preset-row {
@@ -1951,7 +1951,7 @@ body {
 
 .end-map-bar__label {
   font-weight: 700;
-  color: #f3c969;
+  color: #e9c167;
 }
 
 /* ==========================================================================

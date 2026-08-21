@@ -2,12 +2,12 @@ import { hexCorners, type Board as BoardData, type TileType } from '../game/boar
 import type { Player } from '../game/players'
 
 const TILE_FILL: Record<TileType, string> = {
-  lumber: '#2f6b3a',
-  brick: '#b0563a',
-  wool: '#8dbc5c',
-  grain: '#e2ba34',
-  ore: '#7a8794',
-  desert: '#dcc79a',
+  lumber: '#35653d',
+  brick: '#aa5a42',
+  wool: '#92b967',
+  grain: '#d9b33f',
+  ore: '#7b8792',
+  desert: '#d7c399',
 }
 
 const TILE_ICON: Record<TileType, string> = {
@@ -43,7 +43,7 @@ const CITY_SHAPE = '-13,8 -13,-1 -6,-8 1,-1 1,-5 7,-12 13,-5 13,8'
 
 /** 6 and 8 are the highest-probability numbers and are printed in red. */
 function numberColor(n: number): string {
-  return n === 6 || n === 8 ? '#b3261e' : '#3b3226'
+  return n === 6 || n === 8 ? '#af3931' : '#3b3226'
 }
 
 /** Probability pips: one dot per way the number can be rolled (1-5). */
